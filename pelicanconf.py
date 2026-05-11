@@ -18,7 +18,7 @@ DELETE_OUTPUT_DIRECTORY = True
 
 # Title menu options
 MENUITEMS = [('Archives', '/archives.html'),
-             ('Blog', 'http://coding2learn.org'),]
+             ('Blog', '/index.html'),]
 
 NEWEST_FIRST_ARCHIVES = True
 
@@ -40,8 +40,12 @@ GITHUB_URL = 'https://github.com/MarcScott'
 
 DEFAULT_PAGINATION = 10
 
+# Static pages
+PAGE_PATHS = ['pages']
 
+# Clean page URLs, e.g. /about/
+PAGE_URL = '{slug}/'
+PAGE_SAVE_AS = '{slug}/index.html'
 
-PIWIK_URL='www.coding2learn.org/piwik'
-# first piwik site is always id 1
-PIWIK_SITE_ID=1
+# Keep pages out of the top nav; we will put them in the sidebar instead.
+DISPLAY_PAGES_ON_MENU = False
