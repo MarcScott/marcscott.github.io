@@ -13,7 +13,7 @@ Template: recipe
 1. Break the chocolate into small pieces, put into a pan with the liquid and
    stir to a thick cream. The chocolate should be hot, but the sides of the pan
    never so hot that you cannot touch them.
-1. Take off the heat and stir in the butter and flavouring.
+1. Take off the heat and stir in the butter and any flavouring.
 1. Crack each of the eggs, putting the whites into a basin and dropping the
    yolks one at a time into the chocolate pan, stirring well after each
    addition. **Watch point:** it's important that the chocolate is hot so that
