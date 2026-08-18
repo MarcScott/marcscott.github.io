@@ -1,5 +1,5 @@
-Title: Hot Pub-Style Chicken Wings
-Slug: recipes/hot-pub-style-chicken-wings
+Title: Hot wings 2.0
+Slug: recipes/hot-wings-2-0
 Group: Snacks & Starters
 Template: recipe
 
