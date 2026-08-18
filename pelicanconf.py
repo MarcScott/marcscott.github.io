@@ -58,4 +58,5 @@ DISPLAY_PAGES_ON_MENU = False
 RECIPE_GROUPS = ['Mains',
                  'Sides & Vegetables',
                  'Sauces & Salsas',
-                 'Snacks & Starters',]
+                 'Snacks & Starters',
+                 'Puddings',]
