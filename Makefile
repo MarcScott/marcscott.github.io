@@ -1,5 +1,7 @@
 PY?=python3
-PELICAN?=pelican
+VENV?=$(CURDIR)/.venv
+VENVSTAMP=$(VENV)/.installed
+PELICAN?=$(VENV)/bin/pelican
 PELICANOPTS=
 
 BASEDIR=$(CURDIR)
@@ -37,12 +39,18 @@ help:
 	@echo '                                                                       '
 	@echo 'Usage:                                                                 '
 	@echo '   make html                        (re)generate the web site          '
+	@echo '   make devserver [PORT=8000]       rebuild on save + serve; ctrl-C out '
+	@echo '   make serve [PORT=8000]           serve the built site, no rebuilding '
 	@echo '   make clean                       remove the generated files         '
-	@echo '   make regenerate                  regenerate files upon modification '
-	@echo '   make publish                     generate using production settings '
-	@echo '   make serve [PORT=8000]           serve site at http://localhost:8000'
-	@echo '   make devserver [PORT=8000]       start/restart develop_server.sh    '
-	@echo '   make stopserver                  stop local server                  '
+	@echo '   make venv                        just build the .venv, nothing else '
+	@echo '                                                                       '
+	@echo 'Editing a recipe: run "make devserver", edit content/pages/recipes/,   '
+	@echo 'watch http://localhost:8000/recipes/. Commit content/ AND output/ when  '
+	@echo 'done -- the deploy workflow uploads output/ as-is, it does not build.   '
+	@echo '                                                                       '
+	@echo 'The first make builds a .venv from requirements.txt automatically.      '
+	@echo 'Use "make html" for anything you intend to commit: "make publish" uses  '
+	@echo 'absolute URLs and would rewrite every page in output/.                  '
 	@echo '   make ssh_upload                  upload the web site via SSH        '
 	@echo '   make rsync_upload                upload the web site via rsync+ssh  '
 	@echo '   make dropbox_upload              upload the web site via Dropbox    '
@@ -54,27 +62,38 @@ help:
 	@echo 'Set the DEBUG variable to 1 to enable debugging, e.g. make DEBUG=1 html'
 	@echo '                                                                       '
 
-html:
+# Everything that runs pelican depends on this stamp, so the virtualenv is
+# built on first use and refreshed whenever requirements.txt changes.
+$(VENVSTAMP): requirements.txt
+	$(PY) -m venv $(VENV)
+	$(VENV)/bin/python -m pip install --quiet --upgrade pip
+	$(VENV)/bin/python -m pip install --quiet -r requirements.txt
+	@touch $@
+	@echo 'Build environment ready in $(VENV)'
+
+venv: $(VENVSTAMP)
+
+html: $(VENVSTAMP)
 	$(PELICAN) $(INPUTDIR) -o $(OUTPUTDIR) -s $(CONFFILE) $(PELICANOPTS)
 
 clean:
 	[ ! -d $(OUTPUTDIR) ] || rm -rf $(OUTPUTDIR)
 
-regenerate:
+regenerate: $(VENVSTAMP)
 	$(PELICAN) -r $(INPUTDIR) -o $(OUTPUTDIR) -s $(CONFFILE) $(PELICANOPTS)
 
-serve:
+serve: $(VENVSTAMP)
 ifdef PORT
-	cd $(OUTPUTDIR) && $(PY) -m pelican.server $(PORT)
+	$(PELICAN) --listen --port $(PORT) -o $(OUTPUTDIR) -s $(CONFFILE)
 else
-	cd $(OUTPUTDIR) && $(PY) -m pelican.server
+	$(PELICAN) --listen -o $(OUTPUTDIR) -s $(CONFFILE)
 endif
 
-devserver:
+devserver: $(VENVSTAMP)
 ifdef PORT
-	$(BASEDIR)/develop_server.sh restart $(PORT)
+	$(PELICAN) -r --listen --port $(PORT) $(INPUTDIR) -o $(OUTPUTDIR) -s $(CONFFILE) $(PELICANOPTS)
 else
-	$(BASEDIR)/develop_server.sh restart
+	$(PELICAN) -r --listen $(INPUTDIR) -o $(OUTPUTDIR) -s $(CONFFILE) $(PELICANOPTS)
 endif
 
 stopserver:
@@ -107,4 +126,4 @@ github: publish
 	ghp-import -b $(GITHUB_PAGES_BRANCH) $(OUTPUTDIR)
 	git push origin $(GITHUB_PAGES_BRANCH)
 
-.PHONY: html help clean regenerate serve devserver publish ssh_upload rsync_upload dropbox_upload ftp_upload s3_upload cf_upload github
+.PHONY: html help clean regenerate serve devserver publish venv ssh_upload rsync_upload dropbox_upload ftp_upload s3_upload cf_upload github

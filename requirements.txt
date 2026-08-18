@@ -1,0 +1,8 @@
+# Build dependencies for the site. `make html` installs these into .venv
+# automatically; see the README.
+#
+# Pelican 4.12.0 reproduces the committed output/ byte-for-byte, so a rebuild
+# only ever shows your own content changes. Bump it deliberately, and expect a
+# large output/ diff when you do.
+pelican==4.12.0
+Markdown==3.10.3
