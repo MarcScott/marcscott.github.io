@@ -20,7 +20,7 @@ Template: recipe
 - 2 x Pack of Aldi frozen raw king prawns £2.29
 - 1 x Pack of The Fishmonger Scottish Mussels in White Wine Sauce
 ## Method
-1. In a blender put the 4 x garlic cloves, chilli pepper, half of the coriander, the parsley, onions and half the pealed ginger to finely chop. Simply add to a large pan with a little virgin oil and cook off. If using raw chicken pieces to replace the prawns add them at this stage.
+1. In a blender put the 4 x garlic cloves, chilli pepper, half of the coriander, the parsley, onions and half the peeled ginger to finely chop. Simply add to a large pan with a little virgin oil and cook off. If using raw chicken pieces to replace the prawns add them at this stage.
 1. Add half the water, vegetable stock cube and lemon grass stalk (bash and split the stalk to open it up so the flavours can get out). Simmer to let the flavours from the spices come through for about 10 minutes.
 1. Add the remaining vegetables and let cook for a further 10 minutes, add salt to taste and more chilli if you want the dish to be hotter. then add and stir in the passata (250ml half a carton) and put to one side.
 1. In a large pan that has a lid add a knob of butter, garlic, coriander and king prawns, once they turn pink generally 5 – 6 minutes they are cooked and put to one side in a dish, try not to over cook the prawns as they will go chewy.

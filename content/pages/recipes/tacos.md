@@ -11,12 +11,12 @@ Template: recipe
 - 2 teaspoon hot paprika
 - 2 teaspoon ground cumin
 - 1/2 teaspoon dried red chilli flakes
-- 1/2 teasponn of cayenne pepper
+- 1/2 teaspoon of cayenne pepper
 - 6 tablespoons tomato puree
 - 12 flour tortillas or taco shells
 - peanut oil, for frying
 - 1 tsp salt
-- 1 tsp course ground peppper
+- 1 tsp coarse ground pepper
 ## Method
 - Dry-fry the mince in a frying pan until brown and crumbly, stirring
   occasionally and breaking it up with a wooden spoon.

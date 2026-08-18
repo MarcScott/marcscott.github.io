@@ -3,7 +3,7 @@ Slug: recipes/silverside-roast-beef
 Group: Mains
 Template: recipe
 
-## Ingredints
+## Ingredients
 - Silver side beef joint
 - 1 tbsp beef dripping or butter
 - 1 tsp salt and some freshly ground black pepper

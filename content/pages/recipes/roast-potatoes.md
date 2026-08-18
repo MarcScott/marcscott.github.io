@@ -11,8 +11,8 @@ Template: recipe
 - An hour before roast is ready, start the potatoes
 - Peel and halve potatoes and bring to boil in a pan of cold water. Boil
   for 2 minutes exactly.
-- Drain potatoes and toss in colinder, adding flour.
+- Drain potatoes and toss in colander, adding flour.
 - Add oil to a roasting tin over high heat, when sizzling add potatoes
   and cook for 5 minutes, ensuring even coating of oil
-- Roast undistrubed for 20 min, then turn and roast for another 20
+- Roast undisturbed for 20 min, then turn and roast for another 20
   minutes.

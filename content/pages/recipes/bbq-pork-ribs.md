@@ -21,7 +21,7 @@ Template: recipe
 - 1/2 cup (125ml) apple cider vinegar (Note 3)
 - 1 1/2 cups tomato ketchup (or Aussie tomato sauce)
 - 1/2 cup (125ml) water (or use remaining apple cider!)
-- 1.5 tbsp molasses , orginal (not blackstrap, Note 4)
+- 1.5 tbsp molasses , original (not blackstrap, Note 4)
 - 1/3 cup brown sugar
 - 2 tsp mustard powder
 - 1.5 tsp garlic powder
@@ -38,7 +38,7 @@ Template: recipe
 - Remove ribs from oven, transfer to lined tray. Pour any juices from tray over the ribs.
 - Flip ribs so the bonier side is up. Slather with Barbecue Sauce, then bake 10 minutes.
 - Remove from oven, then turn ribs over so the meaty side is up. Slather with Barbecue Sauce, bake 5 minutes. Repeat 2 or 3 more times until you've got a thick glaze on the ribs.
-- Cut ribs into individual or multiple rib portions and serve with remaining Barbcue Sauce!
+- Cut ribs into individual or multiple rib portions and serve with remaining Barbecue Sauce!
 ### BARBECUE SAUCE
 - Place all ingredients in a saucepan and simmer over medium heat, stirring occasionally, for 45 minutes or until thickened.
 - Adjust to taste: sweetness with brown sugar / honey, salt and sour with vinegar. Use for glazing ribs and as a sauce for serving.

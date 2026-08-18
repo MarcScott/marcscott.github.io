@@ -4,7 +4,7 @@ Group: Sides & Vegetables
 Template: recipe
 
 ## Ingredients
-- 2 large portabello mushrooms
+- 2 large portobello mushrooms
 - 2 Tbsp. soy sauce use tamari if needed to be gluten free
 - 1 Tbsp. balsamic vinegar
 - 0.5 tsp. minced garlic

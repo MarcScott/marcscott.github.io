@@ -12,7 +12,7 @@ Template: recipe
 - 1⁄2 teaspoon salt
 - 1⁄2 teaspoon pepper
 - 500g medium ground beef
-### Stirins
+### Stir-ins
 - 1 teaspoon dried mixed herbs
 - 2 teaspoons cajun seasoning
 - 1 tbsp fresh herbs

@@ -30,7 +30,7 @@ Template: recipe
   sirloin tip or flank)
 - 1⁄4 cup chopped dry roasted peanuts
 - 1⁄4 cup chopped scallion (3-4 scallions, white & green parts)
-- 8 ounces somen noodles or 8 ounces soba noodles, noodes or 8 ounces
+- 8 ounces somen noodles or 8 ounces soba noodles or 8 ounces
   whole-wheat spaghetti
 ## Instructions
 ### Thai Peanut Sauce Preparation:
@@ -40,7 +40,7 @@ Template: recipe
   a little more water. Do a taste test for salt and spice, adding more
   fish sauce if not salty enough, and more chili sauce &/or red pepper
   flakes, if not spicy enough. If too salty, add another squeeze of
-  fresh limejuice.
+  fresh lime juice.
 ### Beef Pad Thai Preparation:
 - Cook the noodles according to the package directions. Drain, transfer
   to a large bowl, and cover with aluminum foil or plastic wrap to keep
