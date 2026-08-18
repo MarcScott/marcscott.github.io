@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}{{ page.title }} &mdash; {{ SITENAME }}{% endblock %}
+{% block content %}
+{# Every page whose slug lives under recipes/, i.e. one recipe per page. #}
+{% set recipes = [] %}
+{% for candidate in pages if candidate.slug.startswith('recipes/') %}
+  {% set _ = recipes.append(candidate) %}
+{% endfor %}
+<div>
+  <article role="article">
+    <header>
+      {% include '_includes/qr_code.html' %}
+      <h1 class="entry-title">{{ page.title }}</h1>
+    </header>
+    {{ page.content }}
+    {% for group in RECIPE_GROUPS %}
+      {% set in_group = recipes | selectattr('group', 'equalto', group) | sort(attribute='title') | list %}
+      {% if in_group %}
+    <h2>{{ group }}</h2>
+    <ul class="recipe-index">
+      {% for recipe in in_group %}
+      <li><a href="{{ SITEURL }}/{{ recipe.url }}">{{ recipe.title }}</a></li>
+      {% endfor %}
+    </ul>
+      {% endif %}
+    {% endfor %}
+    {# A recipe with a missing or unrecognised Group still gets listed. #}
+    {% set ungrouped = recipes | rejectattr('group', 'in', RECIPE_GROUPS) | sort(attribute='title') | list %}
+    {% if ungrouped %}
+    <h2>Other</h2>
+    <ul class="recipe-index">
+      {% for recipe in ungrouped %}
+      <li><a href="{{ SITEURL }}/{{ recipe.url }}">{{ recipe.title }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </article>
+</div>
+{% endblock %}

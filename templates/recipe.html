@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}{{ page.title }} &mdash; Recipes &mdash; {{ SITENAME }}{% endblock %}
+{% block content %}
+<div>
+  <article role="article">
+    <header>
+      {% include '_includes/qr_code.html' %}
+      <h1 class="entry-title">{{ page.title }}</h1>
+      <p class="recipe-breadcrumb"><a href="{{ SITEURL }}/recipes/">&laquo; All recipes</a></p>
+    </header>
+    {{ page.content }}
+    <footer>
+      <p class="recipe-breadcrumb"><a href="{{ SITEURL }}/recipes/">&laquo; All recipes</a></p>
+    </footer>
+  </article>
+</div>
+{% endblock %}

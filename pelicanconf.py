@@ -11,6 +11,8 @@ ARTICLE_URL = 'blog/{date:%Y}/{date:%m}/{date:%d}/{slug}/'
 ARTICLE_SAVE_AS = 'blog/{date:%Y}/{date:%m}/{date:%d}/{slug}/index.html'
 PATH = 'content'
 THEME = 'themes/pelican-octopress-theme'
+# Templates that live outside the theme, so the theme stays as vendored.
+THEME_TEMPLATES_OVERRIDES = ['templates']
 TIMEZONE = 'Europe/London'
 STATIC_PATHS = ['images','docs']
 DISPLAY_CATEGORIES_ON_MENU = False
@@ -49,3 +51,11 @@ PAGE_SAVE_AS = '{slug}/index.html'
 
 # Keep pages out of the top nav; we will put them in the sidebar instead.
 DISPLAY_PAGES_ON_MENU = False
+
+# Section order on the /recipes/ contents page. Each recipe page sets a
+# matching `Group:`; anything with a group not listed here is collected under
+# an "Other" heading rather than being dropped.
+RECIPE_GROUPS = ['Mains',
+                 'Sides & Vegetables',
+                 'Sauces & Salsas',
+                 'Snacks & Starters',]
