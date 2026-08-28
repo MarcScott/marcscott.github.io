@@ -59,4 +59,5 @@ RECIPE_GROUPS = ['Mains',
                  'Sides & Vegetables',
                  'Sauces & Salsas',
                  'Snacks & Starters',
-                 'Puddings',]
+                 'Puddings',
+                 'Spice Blends',]

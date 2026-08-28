@@ -8,10 +8,13 @@ Template: recipe
 - 500 g lamb mince
 - 8 green finger chillies
 - 1 tbsp ground coriander
+- 1 tbsp coriander seeds, toasted and crushed
+- 2 tbsp ground cumin
+- 1 tbsp cumin seeds, toasted
 - 1 tbsp pepper
 - 1 tbsp salt
 - 2 tbsp gram flour
-- 2 tbsp Marc's garam masala
+- 2 tbsp [Marc's garam masala]({filename}marcs-garam-masala.md)
 - 1 tbsp smoked paprika
 - 5 cloves of garlic
 - 1 thumb of ginger
