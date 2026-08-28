@@ -4,5 +4,6 @@ __pycache__/
 .DS_Store
 pelican.pid
 srv.pid
+cache/
 
 # output/ is deliberately NOT ignored — the deploy workflow uploads it as-is.
