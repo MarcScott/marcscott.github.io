@@ -179,11 +179,15 @@
 /* ============================================================
    CONFIG — edit this block
    ============================================================
-   mode: 'fixed'  the five cards below are always the ones revealed, no matter
-                  which card in the fan is clicked. Use this for Madam Eva's
-                  reading, so it matches the reading you already drew.
-         'random' a genuine draw each time: 3 from the common deck, 2 from the
-                  high deck, none repeated.
+   mode: 'random' a genuine draw: 3 from the common deck, 2 from the high deck,
+                  none repeated. This is what the book wants when the players
+                  have their fortunes read — ch. 2 area G sends you back to the
+                  ch. 1 sequence, and ch. 1 says to "substitute the new results
+                  for the old ones". Whatever comes up here becomes canon.
+         'fixed'  the five cards below are always revealed, whichever card in
+                  the fan is clicked. Use this to replay a reading that has
+                  already happened, or if the party declined Madam Eva's offer
+                  and you are showing them the pre-game reading instead.
 
    The card ids are lowercase card titles with no spaces:
      commons  avenger paladin soldier mercenary myrmidon berserker hoodedone
@@ -199,8 +203,9 @@
                  the book lets the DM pick. Ignored for cards with only one.
    ============================================================ */
 const CONFIG = {
-  mode: 'fixed',
+  mode: 'random',
 
+  // Only used when mode is 'fixed'. Currently holds the pre-game reading.
   fixed: {
     tome:      'beggar',          // 6 of Coins  — Kasimir's hovel, Vallaki
     holySymbol:'healer',          // 3 of Glyphs — Shrine of the White Sun, Krezk
