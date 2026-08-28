@@ -14,7 +14,15 @@ THEME = 'themes/pelican-octopress-theme'
 # Templates that live outside the theme, so the theme stays as vendored.
 THEME_TEMPLATES_OVERRIDES = ['templates']
 TIMEZONE = 'Europe/London'
-STATIC_PATHS = ['images','docs']
+STATIC_PATHS = ['images','docs','tarokka-app']
+
+# tarokka-app is a self-contained app copied through verbatim, not Pelican
+# content. Its index.html would otherwise be picked up and rendered as a blog
+# post, since Pelican reads .html as an article source.
+ARTICLE_EXCLUDES = ['pages','tarokka-app']
+
+# Keep macOS junk out of the built site.
+IGNORE_FILES = ['.#*', '.DS_Store']
 DISPLAY_CATEGORIES_ON_MENU = False
 DELETE_OUTPUT_DIRECTORY = True
 

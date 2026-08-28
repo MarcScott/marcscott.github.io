@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Fortunes of Ravenloft</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{
+    --ink:#0a0908; --panel:#141110; --edge:#2b2420;
+    --gold:#b9975b; --gold-dim:#6d5a37; --blood:#7c1f1f;
+    --parch:#e8dcc3; --muted:#9a8f7d;
+    --card-w: clamp(96px, 12vw, 150px);
+    --serif: "Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:
+      radial-gradient(120% 80% at 50% -10%, #241c18 0%, transparent 60%),
+      radial-gradient(80% 60% at 50% 110%, #1a1412 0%, transparent 55%), var(--ink);
+    color:var(--parch); font-family:var(--serif);
+    display:flex; flex-direction:column; align-items:center;
+    padding:clamp(12px,3vw,32px) 16px 48px;
+  }
+  header{text-align:center; margin-bottom:clamp(10px,2vw,22px)}
+  h1{
+    margin:0; font-size:clamp(24px,4.4vw,44px); font-weight:500;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--gold);
+    text-shadow:0 0 26px rgba(185,151,91,.28);
+  }
+  .sub{margin:.5em 0 0; color:var(--muted); font-style:italic; font-size:clamp(13px,1.6vw,17px)}
+  .rule{width:min(560px,90vw); height:1px; margin:14px auto 0;
+    background:linear-gradient(90deg,transparent,var(--gold-dim),transparent)}
+
+  /* ---------- the spread: the book's cross layout ---------- */
+  .spread{
+    display:grid;
+    column-gap:clamp(10px,1.4vw,20px); row-gap:3.4em;
+    grid-template-columns:repeat(3,var(--card-w));
+    grid-template-rows:repeat(3,auto);
+    margin:clamp(10px,2vw,22px) 0;
+    padding:2.2em 0 2.9em;
+  }
+  .slot{position:relative}
+  .slot[data-pos="2"]{grid-column:2; grid-row:1}
+  .slot[data-pos="1"]{grid-column:1; grid-row:2}
+  .slot[data-pos="5"]{grid-column:2; grid-row:2}
+  .slot[data-pos="3"]{grid-column:3; grid-row:2}
+  .slot[data-pos="4"]{grid-column:2; grid-row:3}
+  .slot .ghost{
+    width:var(--card-w); aspect-ratio:5/7; border-radius:8px;
+    border:1px dashed var(--gold-dim); opacity:.42;
+    display:grid; place-items:center; color:var(--gold-dim);
+    font-size:calc(var(--card-w)*.34); line-height:1;
+  }
+  .slot.active .ghost{
+    opacity:1; border-style:solid; border-color:var(--gold);
+    box-shadow:0 0 22px rgba(185,151,91,.3), inset 0 0 26px rgba(185,151,91,.09);
+    animation:pulse 2.1s ease-in-out infinite;
+  }
+  @keyframes pulse{50%{box-shadow:0 0 34px rgba(185,151,91,.5), inset 0 0 26px rgba(185,151,91,.14)}}
+  .slot .label{
+    position:absolute; left:50%; transform:translateX(-50%);
+    bottom:-2.5em; width:var(--card-w); text-align:center;   /* == one column, so captions can never collide sideways */
+    font-size:clamp(9px,1.05vw,12px); line-height:1.3; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  /* card 2 sits at the top of the cross, so its label goes above it */
+  .slot[data-pos="2"] .label{bottom:auto; top:-2.5em}
+
+  /* ---------- cards ---------- */
+  .card{width:var(--card-w); aspect-ratio:5/7; perspective:1100px; cursor:default}
+  .card .inner{
+    position:relative; width:100%; height:100%;
+    transform-style:preserve-3d; transition:transform .85s cubic-bezier(.2,.75,.2,1);
+  }
+  .card.revealed .inner{transform:rotateY(180deg)}
+  .face{
+    position:absolute; inset:0; backface-visibility:hidden;
+    border-radius:8px; overflow:hidden;
+    box-shadow:0 6px 20px rgba(0,0,0,.65), 0 0 0 1px rgba(185,151,91,.22);
+  }
+  .face.front{transform:rotateY(180deg); background:#000}
+  .face.front img{width:100%; height:100%; display:block; object-fit:cover}
+  .face.back svg{width:100%; height:100%; display:block}
+
+  /* ---------- the deck fan ---------- */
+  .deck-area{text-align:center; width:100%; max-width:900px}
+  .fan{
+    position:relative; height:calc(var(--card-w)*1.75);
+    margin:6px auto 0;
+  }
+  .fan .card{left:50%; margin-left:calc(var(--card-w) / -2)}
+  .fan .card{
+    position:absolute; top:0; cursor:pointer;
+    transition:transform .28s ease, filter .28s ease;
+    will-change:transform;
+  }
+  .fan .card:hover, .fan .card:focus-visible{
+    filter:drop-shadow(0 0 14px rgba(185,151,91,.55)); outline:none; z-index:60 !important;
+  }
+  .fan.spent{pointer-events:none; opacity:.25; transition:opacity .5s}
+  .prompt{
+    min-height:3.2em; margin:clamp(10px,2vw,20px) auto 0; max-width:60ch;
+    color:var(--parch); font-size:clamp(14px,1.8vw,19px); line-height:1.55;
+  }
+  .prompt .says{display:block; color:var(--gold); font-style:normal;
+    font-size:.72em; letter-spacing:.16em; text-transform:uppercase; margin-bottom:.5em}
+  .prompt em{color:#f0e6d2}
+
+  .flier{position:fixed; z-index:200; pointer-events:none; margin:0}
+
+  /* ---------- readout ---------- */
+  .readout{width:min(760px,94vw); margin:clamp(18px,3vw,34px) auto 0; display:grid; gap:12px}
+  .entry{
+    border:1px solid var(--edge); border-left:3px solid var(--gold-dim);
+    background:linear-gradient(180deg, rgba(255,255,255,.028), transparent);
+    padding:14px 18px; border-radius:4px;
+    animation:rise .5s ease both;
+  }
+  @keyframes rise{from{opacity:0; transform:translateY(10px)}}
+  .entry h3{
+    margin:0 0 .2em; font-size:clamp(15px,1.7vw,19px); font-weight:500;
+    color:var(--gold); letter-spacing:.06em;
+  }
+  .entry .cardname{color:var(--muted); font-size:.85em; letter-spacing:.06em; text-transform:uppercase}
+  .entry blockquote{
+    margin:.7em 0 0; padding-left:.9em; border-left:2px solid var(--blood);
+    font-style:italic; font-size:clamp(14px,1.7vw,18px); line-height:1.6; color:#f0e6d2;
+  }
+  .dm{
+    margin-top:.8em; padding-top:.7em; border-top:1px dotted var(--gold-dim);
+    font-size:.9em; color:#c9bda4;
+  }
+  .dm b{color:var(--gold); font-weight:500; letter-spacing:.1em;
+    text-transform:uppercase; font-size:.8em; display:block; margin-bottom:.3em}
+  .dm .alt{margin-top:.6em}
+
+  footer{margin-top:clamp(22px,4vw,40px); text-align:center}
+  button{
+    font-family:var(--serif); font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--gold); background:transparent; border:1px solid var(--gold-dim);
+    padding:.7em 1.5em; border-radius:3px; cursor:pointer; transition:.2s;
+  }
+  button:hover{background:rgba(185,151,91,.1); border-color:var(--gold)}
+  .dm-badge{
+    position:fixed; top:8px; right:10px; font-size:10px; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--blood); border:1px solid var(--blood);
+    padding:3px 8px; border-radius:2px; background:rgba(0,0,0,.6);
+  }
+  @media (max-width:430px){ .slot .label{font-size:8px; letter-spacing:.04em} }
+  @media (prefers-reduced-motion:reduce){
+    .card .inner{transition-duration:.01ms} .slot.active .ghost{animation:none}
+    .entry{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>The Fortunes of Ravenloft</h1>
+  <p class="sub" id="sub">Madam Eva spreads the cards before you.</p>
+  <div class="rule"></div>
+</header>
+
+<section class="spread" id="spread"></section>
+
+<section class="deck-area">
+  <div class="fan" id="fan"></div>
+  <p class="prompt" id="prompt"></p>
+</section>
+
+<section class="readout" id="readout"></section>
+
+<footer><button id="reset">Shuffle and begin again</button></footer>
+
+<script src="cards.js"></script>
+<script>
+/* ============================================================
+   CONFIG — edit this block
+   ============================================================
+   mode: 'fixed'  the five cards below are always the ones revealed, no matter
+                  which card in the fan is clicked. Use this for Madam Eva's
+                  reading, so it matches the reading you already drew.
+         'random' a genuine draw each time: 3 from the common deck, 2 from the
+                  high deck, none repeated.
+
+   The card ids are lowercase card titles with no spaces:
+     commons  avenger paladin soldier mercenary myrmidon berserker hoodedone
+              dictator torturer warrior · transmuter diviner enchanter abjurer
+              elementalist evoker illusionist necromancer conjurer wizard ·
+              swashbuckler philanthropist trader merchant guildmember beggar
+              thief taxcollector miser rogue · monk missionary healer shepherd
+              druid anarchist charlatan bishop traitor priest
+     highs    artifact beast brokenone darklord donjon seer ghost executioner
+              horseman innocent marionette mists raven tempter
+
+   enemyVariant: seven of the high cards offer two possible allies (A and B);
+                 the book lets the DM pick. Ignored for cards with only one.
+   ============================================================ */
+const CONFIG = {
+  mode: 'fixed',
+
+  fixed: {
+    tome:      'beggar',          // 6 of Coins  — Kasimir's hovel, Vallaki
+    holySymbol:'healer',          // 3 of Glyphs — Shrine of the White Sun, Krezk
+    sunsword:  'philanthropist',  // 2 of Coins  — Abbey nursery, Krezk (house change)
+    enemy:     'brokenone',       // Broken One  — Donavich (variant B)
+    strahd:    'marionette'       // Marionette  — north tower peak, K60
+  },
+
+  enemyVariant: 'B',
+
+  // DM notes (the actual locations) are hidden unless the page is opened
+  // with ?dm=1 on the end of the URL.
+  dm: new URLSearchParams(location.search).has('dm')
+};
+
+/* ---------- card back, drawn rather than lifted from the book ---------- */
+function cardBackSVG(){
+  const rays = [];
+  for (let i = 0; i < 60; i++){
+    const a = (i / 60) * Math.PI * 2;
+    const r1 = 16, r2 = i % 5 === 0 ? 46 : 38;
+    rays.push(`<line x1="${(50+Math.cos(a)*r1).toFixed(2)}" y1="${(70+Math.sin(a)*r1*1.4).toFixed(2)}"
+                     x2="${(50+Math.cos(a)*r2).toFixed(2)}" y2="${(70+Math.sin(a)*r2*1.4).toFixed(2)}"
+                     stroke="#8a7449" stroke-width="${i%5===0?.7:.35}" opacity="${i%5===0?.55:.3}"/>`);
+  }
+  const diamond = (cy, s) =>
+    `<path d="M50 ${cy-s} L${50+s*0.72} ${cy} L50 ${cy+s} L${50-s*0.72} ${cy} Z"
+           fill="none" stroke="#b9975b" stroke-width=".9" opacity=".8"/>`;
+  return `<svg viewBox="0 0 100 140" preserveAspectRatio="none" aria-hidden="true">
+    <rect width="100" height="140" fill="#0b0a0c"/>
+    <rect x="2.5" y="2.5" width="95" height="135" fill="none" stroke="#8a7449" stroke-width="1" opacity=".75"/>
+    <rect x="5.5" y="5.5" width="89" height="129" fill="none" stroke="#8a7449" stroke-width=".4" opacity=".45"/>
+    <g>${rays.join('')}</g>
+    <circle cx="50" cy="70" r="15" fill="#0b0a0c" stroke="#b9975b" stroke-width=".8" opacity=".9"/>
+    ${diamond(70, 11)}${diamond(70, 6)}
+    ${diamond(20, 8)}${diamond(120, 8)}
+  </svg>`;
+}
+
+/* ---------- data helpers ---------- */
+const FAN_CARDS = 13;   // how many backs to draw in the fan
+
+// Full titles are long; the cross gets abbreviated captions.
+const SHORT = {1:'The Tome', 2:'Holy Symbol', 3:'The Sunsword', 4:"Strahd's Enemy", 5:'Strahd'};
+
+const byId = Object.fromEntries(DATA.cards.map(c => [c.id, c]));
+const POS   = DATA.positions;
+const $ = s => document.querySelector(s);
+
+function pickVariant(card){
+  const list = card.enemy || [];
+  if (list.length < 2) return list[0];
+  return list.find(e => e.variant === CONFIG.enemyVariant) || list[0];
+}
+
+function clueFor(pos, card){
+  if (pos.kind === 'treasure') return card.treasure.clue;
+  if (pos.kind === 'enemy')    return (pickVariant(card) || {}).clue || '';
+  return card.location.clue;
+}
+function resultFor(pos, card){
+  if (pos.kind === 'treasure') return card.treasure.result;
+  if (pos.kind === 'enemy')    return (pickVariant(card) || {}).result || '';
+  return card.location.result;
+}
+
+function sample(arr, n){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+function buildPlan(){
+  if (CONFIG.mode === 'fixed'){
+    const f = CONFIG.fixed;
+    return [f.tome, f.holySymbol, f.sunsword, f.enemy, f.strahd].map(id => byId[id]);
+  }
+  const commons = DATA.cards.filter(c => c.deck === 'common');
+  const highs   = DATA.cards.filter(c => c.deck === 'high');
+  return [...sample(commons, 3), ...sample(highs, 2)];
+}
+
+/* ---------- state ---------- */
+let plan = [], step = 0;
+
+/* ---------- build the spread ---------- */
+function renderSpread(){
+  $('#spread').innerHTML = POS.map(p => `
+    <div class="slot" data-pos="${p.n}" id="slot-${p.n}">
+      <div class="ghost">${p.n}</div>
+      <span class="label">${p.n}. ${SHORT[p.n]}</span>
+    </div>`).join('');
+}
+
+/* ---------- build the fan for the current deck ---------- */
+function renderFan(){
+  const deck  = step < 3 ? 'common' : 'high';
+  const drawnIds = plan.slice(0, step).map(c => c.id);
+  const pool = DATA.cards.filter(c => c.deck === deck && !drawnIds.includes(c.id));
+  const fan  = $('#fan');
+  fan.classList.remove('spent');
+  fan.innerHTML = '';
+  // The fan is a display of the deck, not one sprite per card: 40 backs at this
+  // size collapse into unreadable slivers. Show a fixed handful, wide enough to
+  // aim at. Which one gets clicked has no bearing on what is drawn.
+  const n = Math.min(pool.length, FAN_CARDS);
+  const spanDeg = 26, spreadPx = Math.min(n * 46, 620);
+  for (let i = 0; i < n; i++){
+    const c   = pool[i];
+    const t   = n === 1 ? .5 : i / (n - 1);
+    const rot = -spanDeg / 2 + spanDeg * t;
+    const dx  = (t - .5) * spreadPx;
+    const dy  = Math.pow((t - .5) * 2, 2) * (n > 1 ? 16 : 0);   // slight arc
+    const el  = document.createElement('div');
+    el.className = 'card';
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', 'Draw a card');
+    el.style.zIndex = i;
+    el.style.transform =
+      `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) rotate(${rot.toFixed(2)}deg)`;
+    el.innerHTML = `<div class="inner"><div class="face back">${cardBackSVG()}</div></div>`;
+    el.addEventListener('click', () => draw(el));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); draw(el); }
+    });
+    fan.appendChild(el);
+  }
+  $('#sub').textContent = step < 3
+    ? 'The common deck — three cards for the three treasures.'
+    : 'The high deck — two cards for your ally and for Strahd himself.';
+}
+
+/* ---------- prompt (Madam Eva's line before each flip) ---------- */
+function setPrompt(){
+  const p = POS[step];
+  $('#prompt').innerHTML = p
+    ? `<span class="says">Card ${p.n} · ${p.title}</span><em>&ldquo;${p.intro}&rdquo;</em>`
+    : `<span class="says">The reading is complete</span><em>&ldquo;The cards have spoken. Now go, and may the light of dawn find you.&rdquo;</em>`;
+}
+
+/* ---------- draw + flip ---------- */
+let busy = false;
+function draw(fanEl){
+  if (busy || step >= 5) return;
+  busy = true;
+
+  const pos  = POS[step];
+  const card = plan[step];
+  const slot = document.querySelector(`#slot-${pos.n}`);
+
+  // fly the clicked card from the fan to its place in the spread
+  const from = fanEl.getBoundingClientRect();
+  const to   = slot.getBoundingClientRect();
+  const flier = fanEl.cloneNode(true);
+  flier.classList.add('flier');
+  flier.style.cssText += `left:${from.left}px; top:${from.top}px; width:${from.width}px; transform:none;`;
+  document.body.appendChild(flier);
+  fanEl.style.visibility = 'hidden';
+
+  void flier.offsetWidth;                       // commit the start position
+  flier.style.transition = 'transform .55s cubic-bezier(.3,.7,.2,1)';
+  flier.style.transform  =
+    `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`;
+
+  setTimeout(() => {
+    flier.remove();
+    slot.innerHTML = `
+      <div class="card" id="card-${pos.n}">
+        <div class="inner">
+          <div class="face back">${cardBackSVG()}</div>
+          <div class="face front"><img src="${card.img}" alt="${card.label}"></div>
+        </div>
+      </div>
+      <span class="label">${pos.n}. ${SHORT[pos.n]}</span>`;
+    const placed = document.querySelector(`#card-${pos.n}`);
+    void placed.offsetWidth;                    // commit the face-down state
+    placed.classList.add('revealed');
+
+    setTimeout(() => {
+      addEntry(pos, card);
+      step++;
+      const deckChanged = step === 3;
+      if (step >= 5){ $('#fan').classList.add('spent'); $('#sub').textContent = 'The reading is complete.'; }
+      else if (deckChanged) renderFan();
+      else fanEl.remove();
+      setPrompt();
+      markActive();
+      busy = false;
+    }, 520);
+  }, 560);
+}
+
+function markActive(){
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+  if (step < 5) document.querySelector(`#slot-${POS[step].n}`)?.classList.add('active');
+}
+
+/* ---------- readout ---------- */
+function addEntry(pos, card){
+  const clue = clueFor(pos, card), result = resultFor(pos, card);
+  let dmBlock = '';
+  if (CONFIG.dm){
+    let alts = '';
+    if (pos.kind === 'enemy' && (card.enemy || []).length > 1){
+      const chosen = pickVariant(card);
+      alts = '<div class="alt"><em>Other option in the book:</em> ' +
+        card.enemy.filter(e => e !== chosen)
+          .map(e => `(${e.variant}) ${e.result}`).join(' ') + '</div>';
+    }
+    dmBlock = `<div class="dm"><b>DM</b>${result}${alts}</div>`;
+  }
+  const el = document.createElement('div');
+  el.className = 'entry';
+  el.innerHTML = `
+    <h3>${pos.n}. ${pos.title}</h3>
+    <div class="cardname">${card.label}${card.playing ? ' &middot; ' + card.playing : ''}</div>
+    <blockquote>&ldquo;${clue}&rdquo;</blockquote>
+    ${dmBlock}`;
+  $('#readout').appendChild(el);
+}
+
+/* ---------- go ---------- */
+function start(){
+  plan = buildPlan(); step = 0;
+  $('#readout').innerHTML = '';
+  renderSpread(); renderFan(); setPrompt(); markActive();
+  // warm the images we're going to need
+  plan.forEach(c => { const i = new Image(); i.src = c.img; });
+}
+$('#reset').addEventListener('click', start);
+if (CONFIG.dm){
+  const b = document.createElement('div');
+  b.className = 'dm-badge'; b.textContent = 'DM view';
+  document.body.appendChild(b);
+}
+start();
+</script>
+</body>
+</html>
