@@ -55,7 +55,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold-dim);outlin
 .grand{display:flex;gap:16px;margin-left:auto;flex-wrap:wrap}
 .grand div{text-align:right;line-height:1.2}
 .grand b{display:block;font-size:15px;font-weight:600}
-.actions{display:flex;gap:6px;flex-wrap:wrap}
+.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{
+  font-size:12px;padding:3px 10px;border-radius:999px;white-space:nowrap;
+  border:1px solid var(--line);background:#191510;color:var(--muted);cursor:pointer;
+}
+.chip:hover{border-color:var(--gold-dim)}
+.chip.shared{color:var(--ok);border-color:#3f5c34}
+.chip.connecting{color:var(--gold);border-color:var(--gold-dim)}
+.chip.error{color:var(--bad);border-color:#5e2b25}
 
 /* ---------- add bar ---------- */
 .addbar{border-bottom:1px solid var(--line);background:var(--panel);padding:0 16px}
@@ -167,6 +175,14 @@ dialog header{padding:12px 16px;border-bottom:1px solid var(--line);background:v
 dialog .body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 dialog footer{padding:11px 16px;border-top:1px solid var(--line);display:flex;gap:7px;justify-content:flex-end}
 dialog .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#boardsDlg footer{justify-content:space-between}
+#boardLink{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.board-row{
+  display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;
+  border:1px solid var(--line);border-radius:7px;padding:2px 7px;
+}
+.board-row.current{border-color:var(--gold-dim);background:var(--panel-2)}
+.board-row .open{justify-self:start;text-align:left;font-family:var(--serif);font-size:15px;color:var(--ink)}
 dialog .field input,dialog .field select,dialog .field textarea{width:100%}
 blockquote{
   margin:0;padding:8px 12px;border-left:3px solid var(--gold-dim);
@@ -178,6 +194,7 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
 
 .toast{
   position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:120;
+  max-width:min(56ch,92vw);text-align:center;line-height:1.4;
   background:var(--panel-2);border:1px solid var(--gold-dim);border-radius:8px;
   padding:8px 16px;box-shadow:0 8px 24px #000a;
 }
@@ -200,6 +217,8 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
     <div><span class="tiny muted">Total value</span><b id="grandValue">—</b></div>
   </div>
   <div class="actions">
+    <button type="button" id="syncChip" class="chip local">Local only</button>
+    <button class="btn" id="btnBoards">Boards</button>
     <button class="btn" id="btnSave">Save file</button>
     <button class="btn" id="btnLoad">Load file</button>
     <button class="btn ghost" id="btnRules" title="Carrying capacity rules">Rules</button>
@@ -286,6 +305,30 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
   </form>
 </dialog>
 
+<dialog id="boardsDlg">
+  <header><h2>Boards</h2></header>
+  <div class="body">
+    <div class="field">
+      <label for="boardLink">Link to this board</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="boardLink" readonly aria-label="Link to this board">
+        <button class="btn" id="boardCopy" type="button">Copy</button>
+      </div>
+      <p class="tiny muted" id="boardShareNote"></p>
+    </div>
+    <div class="field">
+      <label>Boards on this device</label>
+      <div id="boardList" class="movelist"></div>
+      <p class="tiny muted">This list lives in your browser. A player opening their own link
+        never learns that your other campaigns exist.</p>
+    </div>
+  </div>
+  <footer>
+    <button class="btn" id="boardNew" type="button">New board</button>
+    <form method="dialog"><button class="btn primary">Done</button></form>
+  </footer>
+</dialog>
+
 <dialog id="rulesDlg">
   <header><h2>Carrying capacity</h2></header>
   <div class="body">
@@ -309,14 +352,18 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
   <footer><form method="dialog"><button class="btn primary">Close</button></form></footer>
 </dialog>
 
+<script src="firebase-config.js"></script>
 <script src="items.js"></script>
 <script>
 'use strict';
 
 /* ============================== constants ============================== */
-const STORAGE_KEY = 'dnd-party-inventory-v1';
 const FORMAT = 'dnd-party-inventory';
 const VERSION = 1;
+const BOARDS_KEY = 'dnd-party-inventory-boards';      // the boards this browser knows of
+const LEGACY_KEY = 'dnd-party-inventory-v1';          // the single board from before boards existed
+const boardKey = id => 'dnd-party-inventory-board-' + id;
+const SDK = 'https://www.gstatic.com/firebasejs/12.5.0/';
 
 const SIZES = ['Tiny','Small','Medium','Large','Huge','Gargantuan'];
 const CARRY_PER_STR = {Tiny:7.5, Small:15, Medium:15, Large:30, Huge:60, Gargantuan:120};
@@ -336,6 +383,17 @@ const RARITIES = [
 const ALL_CATS = [...CATEGORY_ORDER, ...CUSTOM_CATS];
 
 const uid = () => 'i' + Math.random().toString(36).slice(2, 10);
+let ordCounter = 0;
+const nextOrd = () => Date.now() * 1000 + (ordCounter++ % 1000);   // keeps item rows in the order they arrived
+
+/** Board ids are the only thing protecting a board, so they are properly random.
+    The alphabet drops l/o/0/1 so an id can be read aloud without ambiguity. */
+function newBoardId(){
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map(n => 'abcdefghijkmnpqrstuvwxyz23456789'[n % 32]).join('');
+}
+const clientId = 'c' + Math.random().toString(36).slice(2, 10);
 const $ = s => document.querySelector(s);
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -361,7 +419,7 @@ function defaultState(){
   };
 }
 
-let state = load() || defaultState();
+let state = defaultState();   // replaced by bootBoard()
 
 /* ============================== helpers ============================== */
 const pool     = () => state.holders.find(h => h.kind === 'pool');
@@ -424,21 +482,48 @@ function toast(msg){
   el.className = 'toast';
   el.textContent = msg;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2600);
+  setTimeout(() => el.remove(), msg.length > 60 ? 7000 : 2600);
 }
 
 /* ============================== persistence ============================== */
+/* Each board caches itself locally, so it opens instantly and keeps working with no
+   network. When sharing is on, the copy on the server is the one that settles ties. */
+let boardId = null;
+
 function save(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  try{ localStorage.setItem(boardKey(boardId), JSON.stringify(state)); }
   catch(e){ /* private browsing, quota — the file export is the real save */ }
 }
 
-function load(){
+function loadBoard(id){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(boardKey(id));
     return raw ? migrate(JSON.parse(raw)) : null;
   }catch(e){ return null; }
 }
+
+function readBoards(){
+  try{ return JSON.parse(localStorage.getItem(BOARDS_KEY)) || []; }catch(e){ return []; }
+}
+
+function writeBoards(list){
+  try{ localStorage.setItem(BOARDS_KEY, JSON.stringify(list.slice(0, 40))); }catch(e){}
+}
+
+/** The list of boards is local to this browser: opening a player's link never tells
+    them what other campaigns exist. */
+function rememberBoard(id, name){
+  const list = readBoards().filter(b => b.id !== id);
+  list.unshift({id, name: name || 'Untitled board', seen: Date.now()});
+  writeBoards(list);
+}
+
+function forgetBoard(id){
+  writeBoards(readBoards().filter(b => b.id !== id));
+  try{ localStorage.removeItem(boardKey(id)); }catch(e){}
+}
+
+const boardLink = id => location.origin + location.pathname + '#r=' + id;
 
 /** Accept anything shaped like a save file; fill in whatever a hand-edited one omits. */
 function migrate(data){
@@ -477,7 +562,7 @@ function sanitiseCoins(c){
 }
 
 function cleanDef(d){
-  return {n:String(d.n || 'Item'), c:String(d.c || 'Other'),
+  return {k:String(d.k || uid()), n:String(d.n || 'Item'), c:String(d.c || 'Other'),
           w:Math.max(0, +d.w || 0), v:Math.max(0, Math.round(+d.v || 0)),
           d:d.d ? String(d.d) : '', custom:true};
 }
@@ -487,42 +572,64 @@ function cleanItem(i){
   return {uid:String(i.uid || uid()), n:String(i.n), c:String(i.c || 'Other'),
           w:Math.max(0, +i.w || 0), v:Math.max(0, Math.round(+i.v || 0)),
           d:i.d ? String(i.d) : '', custom:!!i.custom,
-          q:Math.max(1, Math.round(+i.q || 1))};
+          q:Math.max(1, Math.round(+i.q || 1)),
+          ord:Number.isFinite(+i.ord) ? +i.ord : nextOrd()};
 }
 
 /* ============================== mutations ============================== */
+/* Every structural change is written as a function of the holders list rather than as
+   a finished result. It runs twice: once against this browser's copy so the screen
+   reacts instantly, and once inside a server transaction against whatever the board
+   actually holds at that moment. That second run is what stops two people working at
+   the same time from overwriting each other — and it is why these functions must not
+   assume the thing they are changing is still there. */
+function mutate(fn, light){
+  fn(state.holders);
+  save();
+  if(light) updatePanel(light); else render();
+  sync.mutateHolders(fn);
+}
+
 /** Add `def` (a catalogue entry or custom definition) to a holder, merging into a like stack. */
 function addToHolder(holderId, def, qty){
-  const h = holderBy(holderId) || pool();
-  const incoming = {uid:uid(), n:def.n, c:def.c, w:def.w, v:def.v, d:def.d || '', custom:!!def.custom, q:qty};
-  const twin = h.items.find(i => stackKey(i) === stackKey(incoming));
-  if(twin) twin.q += qty; else h.items.push(incoming);
-  commit();
+  const newUid = uid(), ord = nextOrd();   // fixed here: the transaction may re-run
+  mutate(holders => {
+    const h = holders.find(x => x.id === holderId) || holders.find(x => x.kind === 'pool');
+    if(!h) return;
+    const incoming = cleanItem({uid:newUid, ord, n:def.n, c:def.c, w:def.w, v:def.v,
+                                d:def.d || '', custom:!!def.custom, q:qty});
+    if(!incoming) return;
+    const twin = h.items.find(i => stackKey(i) === stackKey(incoming));
+    if(twin) twin.q += qty; else h.items.push(incoming);
+  });
 }
 
 function moveItem(itemUid, toId, qty){
-  const {holder:from, item} = findItem(itemUid);
-  const to = holderBy(toId);
-  if(!from || !to || from === to) return;
-  qty = clamp(Math.round(qty), 1, item.q);
-
-  const twin = to.items.find(i => stackKey(i) === stackKey(item));
-  if(twin) twin.q += qty;
-  else to.items.push({...item, uid:uid(), q:qty});
-
-  item.q -= qty;
-  if(item.q <= 0) from.items = from.items.filter(i => i !== item);
-  commit();
+  const newUid = uid(), ord = nextOrd();
+  mutate(holders => {
+    let from = null, item = null;
+    for(const h of holders){
+      const it = h.items.find(i => i.uid === itemUid);
+      if(it){ from = h; item = it; break; }
+    }
+    const to = holders.find(h => h.id === toId);
+    if(!from || !to || from === to) return;     // already moved by somebody else
+    const n = clamp(Math.round(qty), 1, item.q);
+    const twin = to.items.find(i => stackKey(i) === stackKey(item));
+    if(twin) twin.q += n;
+    else to.items.push(cleanItem({...item, uid:newUid, ord, q:n}));
+    item.q -= n;
+    if(item.q <= 0) from.items = from.items.filter(i => i !== item);
+  });
 }
 
 function deleteItem(itemUid){
-  const {holder, item} = findItem(itemUid);
-  if(!holder) return;
-  holder.items = holder.items.filter(i => i !== item);
-  commit();
+  mutate(holders => {
+    for(const h of holders) h.items = h.items.filter(i => i.uid !== itemUid);
+  });
 }
 
-function commit(){ save(); render(); }
+function commit(){ save(); render(); sync.pushBoard(); }
 
 /* ============================== rendering ============================== */
 const poolWrap = $('#poolWrap'), charsWrap = $('#chars');
@@ -770,8 +877,9 @@ $('#customForm').addEventListener('submit', e => {
   };
   const qty = Math.max(1, Math.round(+$('#cQty').value || 1));
   if($('#cRemember').checked && !state.homebrew.some(h => stackKey(h) === stackKey(def))){
-    state.homebrew.push({...def});
+    state.homebrew.push({...def, k:uid()});
     state.homebrew.sort((a,b) => a.n.localeCompare(b.n));
+    sync.pushHomebrew();
   }
   addToHolder($('#cDest').value, def, qty);
   toast(`${def.n} ×${qty} → ${holderBy($('#cDest').value).name}`);
@@ -795,32 +903,42 @@ document.addEventListener('change', e => {
   const t = e.target;
   if(t.dataset.name != null){
     const h = holderBy(t.dataset.name); if(!h) return;
-    h.name = t.value.trim() || h.name; save(); syncDestSelects();
+    const v = t.value.trim() || h.name;
+    mutate(hs => { const x = hs.find(y => y.id === t.dataset.name); if(x) x.name = v; }, h);
+    syncDestSelects();
   }
   if(t.dataset.str != null){
     const h = holderBy(t.dataset.str); if(!h) return;
-    h.str = clamp(Math.round(+t.value || 0), 1, 30); t.value = h.str; save(); updatePanel(h);
+    const v = clamp(Math.round(+t.value || 0), 1, 30); t.value = v;
+    mutate(hs => { const x = hs.find(y => y.id === t.dataset.str); if(x) x.str = v; }, h);
   }
   if(t.dataset.size != null){
     const h = holderBy(t.dataset.size); if(!h) return;
-    h.size = t.value; save(); updatePanel(h);
+    const v = t.value;
+    mutate(hs => { const x = hs.find(y => y.id === t.dataset.size); if(x) x.size = v; }, h);
   }
   if(t.dataset.pb != null){
     const h = holderBy(t.dataset.pb); if(!h) return;
-    h.powerfulBuild = t.checked; save(); updatePanel(h);
+    const v = t.checked;
+    mutate(hs => { const x = hs.find(y => y.id === t.dataset.pb); if(x) x.powerfulBuild = v; }, h);
   }
   if(t.dataset.coinw != null){
     const h = holderBy(t.dataset.coinw); if(!h) return;
-    h.countCoinWeight = t.checked; save(); updatePanel(h);
+    const v = t.checked;
+    mutate(hs => { const x = hs.find(y => y.id === t.dataset.coinw); if(x) x.countCoinWeight = v; }, h);
   }
   if(t.dataset.coin != null){
     const [id, k] = t.dataset.coin.split(':');
     const h = holderBy(id); if(!h) return;
-    h.coins[k] = Math.max(0, Math.round(+t.value || 0)); t.value = h.coins[k]; save(); updatePanel(h);
+    const v = Math.max(0, Math.round(+t.value || 0)); t.value = v;
+    mutate(hs => { const x = hs.find(y => y.id === id); if(x) x.coins[k] = v; }, h);
   }
 });
 
-$('#partyName').addEventListener('change', e => { state.partyName = e.target.value.trim() || 'The Party'; save(); });
+$('#partyName').addEventListener('change', e => {
+  state.partyName = e.target.value.trim() || 'The Party';
+  save(); rememberBoard(boardId, state.partyName); sync.pushMeta();
+});
 
 document.addEventListener('click', e => {
   const del = e.target.closest('[data-delchar]');
@@ -828,18 +946,25 @@ document.addEventListener('click', e => {
     const h = holderBy(del.dataset.delchar);
     const n = h.items.reduce((t,i) => t + i.q, 0);
     if(!confirm(`Remove ${h.name}?` + (n ? ` Their ${n} carried item${n===1?'':'s'} will move to the ${pool().name}.` : ''))) return;
-    for(const it of h.items){
-      const twin = pool().items.find(i => stackKey(i) === stackKey(it));
-      if(twin) twin.q += it.q; else pool().items.push({...it, uid:uid()});
-    }
-    pool().coins = sanitiseCoins(Object.fromEntries(COIN_DEFS.map(([k]) => [k, pool().coins[k] + h.coins[k]])));
-    state.holders = state.holders.filter(x => x !== h);
-    commit();
+    const id = del.dataset.delchar;
+    const uids = h.items.map(() => uid());
+    mutate(holders => {
+      const gone = holders.find(x => x.id === id);
+      const stash = holders.find(x => x.kind === 'pool');
+      if(!gone || !stash) return;
+      gone.items.forEach((it, i) => {
+        const twin = stash.items.find(x => stackKey(x) === stackKey(it));
+        if(twin) twin.q += it.q; else stash.items.push({...it, uid:uids[i] || uid()});
+      });
+      for(const [k] of COIN_DEFS) stash.coins[k] = (stash.coins[k] || 0) + (gone.coins[k] || 0);
+      holders.splice(holders.indexOf(gone), 1);
+    });
+    sync.dropHolder(id);
     return;
   }
   if(e.target.id === 'addChar'){
-    state.holders.push(newCharacter('New character'));
-    commit();
+    const ch = newCharacter('New character');
+    mutate(holders => { if(!holders.some(h => h.id === ch.id)) holders.push(ch); });
     return;
   }
   if(e.target.classList.contains('detail-toggle')){
@@ -1044,17 +1169,24 @@ function openEdit(itemUid){
    form validates, and not every engine dispatches close reliably. */
 $('#editForm').addEventListener('submit', e => {
   const ok = (e.submitter && e.submitter.value) === 'ok';
-  const {item} = findItem(editing);
+  const target = editing;
   editing = null;
-  if(!ok || !item) return;
-  item.n = $('#eName').value.trim() || item.n;
-  item.q = Math.max(1, Math.round(+$('#eQty').value || 1));
-  item.w = Math.max(0, +$('#eWeight').value || 0);
-  item.v = Math.round(Math.max(0, +$('#eValue').value || 0) * COIN_VALUE[$('#eCoin').value]);
-  item.c = $('#eCat').value;
-  item.d = $('#eNotes').value.trim();
-  item.custom = true;              // it no longer matches the printed entry
-  commit();
+  if(!ok || !target || !findItem(target).item) return;
+  const patch = {
+    n: $('#eName').value.trim(),
+    q: Math.max(1, Math.round(+$('#eQty').value || 1)),
+    w: Math.max(0, +$('#eWeight').value || 0),
+    v: Math.round(Math.max(0, +$('#eValue').value || 0) * COIN_VALUE[$('#eCoin').value]),
+    c: $('#eCat').value,
+    d: $('#eNotes').value.trim(),
+    custom: true,                  // it no longer matches the printed entry
+  };
+  mutate(holders => {
+    for(const h of holders){
+      const it = h.items.find(x => x.uid === target);
+      if(it) Object.assign(it, patch, {n: patch.n || it.n});
+    }
+  });
 });
 
 /* ============================== save / load ============================== */
@@ -1076,8 +1208,9 @@ $('#fileIn').addEventListener('change', async e => {
   if(!file) return;
   try{
     state = migrate(JSON.parse(await file.text()));
+    rememberBoard(boardId, state.partyName);
     commit();
-    toast('Loaded ' + file.name);
+    toast('Loaded ' + file.name + (sync.mode === 'shared' ? ' — pushed to everyone on this board' : ''));
   }catch(err){
     alert('Could not load that file.\n\n' + err.message);
   }
@@ -1085,10 +1218,13 @@ $('#fileIn').addEventListener('change', async e => {
 });
 
 $('#btnReset').addEventListener('click', () => {
-  if(!confirm('Clear everything and start a fresh party? Save a file first if you want to keep this.')) return;
+  const shared = sync.mode === 'shared'
+    ? '\n\nThis board is shared: it will clear for everyone holding the link.' : '';
+  if(!confirm('Clear this board and start a fresh party? Save a file first if you want to keep it.' + shared)) return;
   state = defaultState();
   chars().forEach((h, n) => h.name = 'Character ' + (n + 1));
   state.partyName = 'The Party';
+  rememberBoard(boardId, state.partyName);
   commit();
 });
 
@@ -1100,13 +1236,326 @@ document.addEventListener('drop', async e => {
   const file = e.dataTransfer?.files?.[0];
   if(!file || !/\.json$/i.test(file.name)) return;
   e.preventDefault();
-  try{ state = migrate(JSON.parse(await file.text())); commit(); toast('Loaded ' + file.name); }
+  try{ state = migrate(JSON.parse(await file.text())); rememberBoard(boardId, state.partyName); commit(); toast('Loaded ' + file.name); }
   catch(err){ alert('Could not load that file.\n\n' + err.message); }
 });
 
+/* ============================== live sharing ============================== */
+/* Without a Firebase config in firebase-config.js this whole section stays dormant and
+   the page makes no network requests at all: boards are private to this browser.
+   With one, a board becomes a room on the server that everyone holding its link shares. */
+
+const sync = {
+  mode: 'local',        // local | connecting | shared | error
+  detail: '',
+  peers: 0,
+  fb: null,
+  stop: null,
+  /* replaced with real implementations once the SDK is up */
+  mutateHolders(){}, pushBoard(){}, pushMeta(){}, pushHomebrew(){}, dropHolder(){},
+};
+
+function setSync(mode, detail){
+  sync.mode = mode;
+  sync.detail = detail || '';
+  paintSyncChip();
+}
+
+function paintSyncChip(){
+  const el = $('#syncChip');
+  if(!el) return;
+  const label = {
+    local:      'Local only',
+    connecting: 'Connecting…',
+    shared:     sync.peers > 1 ? `Shared · ${sync.peers} here` : 'Shared',
+    error:      'Sync problem',
+  }[sync.mode];
+  el.textContent = label;
+  el.className = 'chip ' + sync.mode;
+  el.title = {
+    local:      'This board lives in this browser only. Add a Firebase config to share it.',
+    connecting: 'Reaching the server…',
+    shared:     'Everyone holding this board\u2019s link sees the same inventory, live.',
+    error:      'Live sharing is off: ' + sync.detail + '\nYour changes are still saved in this browser.',
+  }[sync.mode];
+}
+
+/* ---- shape conversion: arrays in the page, maps on the server ----
+   Firebase merges by key, so lists have to be keyed objects. Store an array index and
+   two clients inserting at once would fight over the same slot. */
+function holdersToRemote(list){
+  const out = {};
+  list.forEach((h, i) => {
+    const items = {};
+    (h.items || []).forEach((it, j) => {
+      const {uid:u, ...rest} = it;
+      items[u] = {...rest, ord: Number.isFinite(+it.ord) ? +it.ord : j};
+    });
+    out[h.id] = {
+      kind:h.kind, name:h.name, order:i,
+      str:h.str ?? 10, size:h.size ?? 'Medium',
+      powerfulBuild: !!h.powerfulBuild,
+      countCoinWeight: h.countCoinWeight !== false,
+      coins: sanitiseCoins(h.coins),
+      items,
+    };
+  });
+  return out;
+}
+
+function remoteToHolders(map){
+  return Object.entries(map || {}).map(([id, h]) => ({
+    id,
+    kind: h.kind === 'pool' ? 'pool' : 'pc',
+    name: String(h.name || 'Adventurer'),
+    str: clamp(Math.round(+h.str || 10), 1, 30),
+    size: SIZES.includes(h.size) ? h.size : 'Medium',
+    powerfulBuild: !!h.powerfulBuild,
+    countCoinWeight: h.countCoinWeight !== false,
+    coins: Object.assign(blankCoins(), sanitiseCoins(h.coins)),
+    order: +h.order || 0,
+    items: Object.entries(h.items || {})
+      .map(([u, it]) => cleanItem({...it, uid:u}))
+      .filter(Boolean)
+      .sort((a, b) => a.ord - b.ord),
+  }))
+  .sort((a, b) => (b.kind === 'pool') - (a.kind === 'pool') || a.order - b.order)
+  .map(h => { delete h.order; return h; });      // position is the array now, as everywhere else
+}
+
+function stateToRemote(s){
+  const homebrew = {};
+  (s.homebrew || []).forEach(d => homebrew[d.k || uid()] = d);
+  return {
+    meta: {name: s.partyName, version: VERSION},
+    holders: holdersToRemote(s.holders),
+    homebrew,
+  };
+}
+
+/* ---- repainting on somebody else's change ----
+   Never yank the board out from under a hand that is mid-drag or mid-keystroke; hold
+   the update and apply it the moment they are done. */
+let renderQueued = false;
+function busyEditing(){
+  if(drag && drag.active) return true;
+  if(popEl || editDlg.open) return true;
+  const a = document.activeElement;
+  return !!(a && a.matches('input, select, textarea') && a.closest('.panel'));
+}
+function scheduleRender(){
+  if(busyEditing()){ renderQueued = true; return; }
+  renderQueued = false;
+  render();
+}
+setInterval(() => { if(renderQueued && !busyEditing()) scheduleRender(); }, 800);
+
+function applyRemote(val){
+  if(!val) return;
+  const holders = remoteToHolders(val.holders);
+  if(!holders.some(h => h.kind === 'pool')) return;      // half-written board; wait
+  state = {
+    format: FORMAT, version: VERSION,
+    partyName: String(val.meta?.name || state.partyName || 'The Party'),
+    holders,
+    homebrew: Object.entries(val.homebrew || {}).map(([k, d]) => cleanDef({...d, k})),
+  };
+  save();
+  rememberBoard(boardId, state.partyName);
+  scheduleRender();
+}
+
+async function startSharing(id){
+  if(sync.stop) sync.stop();
+  /* Detach the writers before anything else: between boards they would otherwise still
+     point at the board we just left, and an edit made in that gap would go to it. */
+  sync.mutateHolders = sync.pushBoard = sync.pushMeta = sync.pushHomebrew = sync.dropHolder = () => {};
+  sync.peers = 0;
+  const cfg = (typeof FIREBASE_CONFIG !== 'undefined') ? FIREBASE_CONFIG : null;
+  if(!cfg || !cfg.databaseURL){ setSync('local'); return; }
+  setSync('connecting');
+  try{
+    const [appMod, dbMod] = await Promise.all([
+      import(SDK + 'firebase-app.js'),
+      import(SDK + 'firebase-database.js'),
+    ]);
+    const db = dbMod.getDatabase(appMod.initializeApp(cfg));
+    const fb = sync.fb = {...dbMod, db};
+    const roomRef = fb.ref(db, 'rooms/' + id);
+
+    /* A wrong databaseURL doesn't fail — the SDK just retries for ever. Give it a
+       deadline so the chip says something useful instead of "Connecting…" all night,
+       and leave the listeners attached so a late connection still recovers. */
+    const first = await Promise.race([
+      fb.get(roomRef).then(snap => ({snap})),
+      new Promise(r => setTimeout(() => r({late:true}), 8000)),
+    ]);
+    if(first.late){
+      setSync('error', 'No answer from the database after 8 seconds. Check databaseURL in '
+        + 'firebase-config.js, and that the rules from firebase-rules.json are published.');
+    }else if(!first.snap.exists()){
+      await fb.set(roomRef, stateToRemote(state));     // first one here seeds the board
+    }
+
+    const offRoom = fb.onValue(roomRef, s => {
+      if(id !== boardId) return;
+      if(sync.mode !== 'shared') setSync('shared');     // a late connection, recovered
+      applyRemote(s.val());
+    }, err => setSync('error', err.message));
+
+    // Presence, re-armed on every reconnect so a dropped tab tidies up after itself.
+    const meRef = fb.ref(db, `rooms/${id}/presence/${clientId}`);
+    const offConn = fb.onValue(fb.ref(db, '.info/connected'), s => {
+      if(s.val() !== true) return;
+      fb.onDisconnect(meRef).remove();
+      fb.set(meRef, fb.serverTimestamp());
+    });
+    const offPeers = fb.onValue(fb.ref(db, `rooms/${id}/presence`), s => {
+      sync.peers = s.exists() ? Object.keys(s.val()).length : 1;
+      paintSyncChip();
+    });
+
+    sync.stop = () => { offRoom(); offConn(); offPeers(); fb.remove(meRef); sync.stop = null; };
+
+    sync.mutateHolders = fn => {
+      fb.runTransaction(fb.ref(db, `rooms/${id}/holders`), remote => {
+        const list = remote ? remoteToHolders(remote) : state.holders;
+        fn(list);
+        return holdersToRemote(list);
+      }).catch(e => setSync('error', e.message));
+    };
+    sync.pushBoard    = () => fb.set(roomRef, stateToRemote(state)).catch(e => setSync('error', e.message));
+    sync.pushMeta     = () => fb.update(fb.ref(db, `rooms/${id}/meta`), {name: state.partyName});
+    sync.pushHomebrew = () => fb.set(fb.ref(db, `rooms/${id}/homebrew`), stateToRemote(state).homebrew);
+    sync.dropHolder   = hid => fb.remove(fb.ref(db, `rooms/${id}/holders/${hid}`));
+
+    if(!first.late) setSync('shared');
+  }catch(e){
+    // Offline, blocked, or a config that doesn't work: keep going, locally.
+    setSync('error', (e && e.message) || String(e));
+  }
+}
+
+/* ============================== boards ============================== */
+function boardIdFromHash(){
+  const m = /[#&]r=([a-z0-9]{8,40})/.exec(location.hash);
+  return m ? m[1] : null;
+}
+
+function openBoard(id, {replace} = {}){
+  boardId = id;
+  state = loadBoard(id) || defaultState();
+  rememberBoard(id, state.partyName);
+  const hash = '#r=' + id;
+  if(location.hash !== hash){
+    if(replace) history.replaceState(null, '', hash); else location.hash = hash;
+  }
+  render();
+  startSharing(id);
+}
+
+function createBoard(name){
+  const id = newBoardId();
+  boardId = id;
+  state = defaultState();
+  if(name) state.partyName = name;
+  save();
+  rememberBoard(id, state.partyName);
+  return id;
+}
+
+/* The board this browser kept before boards existed becomes a board of its own. This
+   runs whatever URL we arrived on — arriving first on a shared link must not strand it. */
+function adoptLegacyBoard(){
+  let legacy = null;
+  try{ legacy = localStorage.getItem(LEGACY_KEY); }catch(e){ return; }
+  if(!legacy) return;
+  const id = newBoardId();
+  try{
+    localStorage.setItem(boardKey(id), legacy);
+    localStorage.removeItem(LEGACY_KEY);
+  }catch(e){ return; }
+  let name = 'Imported board';
+  try{ name = JSON.parse(legacy).partyName || name; }catch(e){}
+  rememberBoard(id, name);
+}
+
+/* Open the board named in the link; failing that the last one used here; failing that
+   a brand new one. */
+function bootBoard(){
+  adoptLegacyBoard();
+  const fromLink = boardIdFromHash();
+  if(fromLink) return openBoard(fromLink, {replace:true});
+  const known = readBoards();
+  if(known.length) return openBoard(known[0].id, {replace:true});
+  openBoard(createBoard(), {replace:true});
+}
+
+addEventListener('hashchange', () => {
+  const id = boardIdFromHash();
+  if(id && id !== boardId) openBoard(id);
+});
+
+/* ---- the boards dialog ---- */
+const boardsDlg = $('#boardsDlg');
+
+function paintBoards(){
+  $('#boardLink').value = boardLink(boardId);
+  $('#boardShareNote').textContent = sync.mode === 'shared'
+    ? 'Send this to your players. Everyone with it edits the same board, live.'
+    : sync.mode === 'error'
+      ? 'Live sharing is off (' + sync.detail + '), so this link only works in this browser for now.'
+      : 'Live sharing is off, so this link only opens the board in this browser. See the README to switch it on.';
+  const list = readBoards();
+  $('#boardList').innerHTML = list.map(b => `
+    <div class="board-row${b.id === boardId ? ' current' : ''}">
+      <button class="btn ghost open" data-open="${b.id}">${esc(b.name)}</button>
+      <span class="tiny muted">${b.id === boardId ? 'open now' : new Date(b.seen).toLocaleDateString()}</span>
+      <button class="btn ghost" data-forget="${b.id}" title="Remove from this device">${ICON.del}</button>
+    </div>`).join('') || '<p class="muted tiny">No other boards on this device.</p>';
+}
+
+$('#syncChip').addEventListener('click', () => toast($('#syncChip').title));
+$('#btnBoards').addEventListener('click', () => { paintBoards(); boardsDlg.showModal(); });
+
+$('#boardNew').addEventListener('click', () => {
+  const name = prompt('Name for the new board?', 'A New Party');
+  if(name === null) return;
+  boardsDlg.close();
+  openBoard(createBoard(name.trim() || 'A New Party'));
+  toast('New board created');
+});
+
+$('#boardCopy').addEventListener('click', async () => {
+  const link = boardLink(boardId);
+  try{ await navigator.clipboard.writeText(link); toast('Link copied'); }
+  catch(e){ $('#boardLink').select(); toast('Press ⌘C to copy'); }
+});
+
+boardsDlg.addEventListener('click', e => {
+  const open = e.target.closest('[data-open]');
+  if(open){
+    boardsDlg.close();
+    if(open.dataset.open !== boardId) openBoard(open.dataset.open);
+    return;
+  }
+  const forget = e.target.closest('[data-forget]');
+  if(forget){
+    const id = forget.dataset.forget;
+    const b = readBoards().find(x => x.id === id);
+    const msg = id === boardId
+      ? 'Forget this board on this device? It stays on the server for anyone else holding the link.'
+      : `Forget "${b ? b.name : id}" on this device?` ;
+    if(!confirm(msg + '\n\nKeep the link and you can open it again.')) return;
+    forgetBoard(id);
+    if(id === boardId) bootBoard();
+    paintBoards();
+  }
+});
+
 /* ============================== go ============================== */
-render();
 switchTab(true);
+bootBoard();
 </script>
 </body>
 </html>

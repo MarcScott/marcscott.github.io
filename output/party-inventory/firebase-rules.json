@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$boardId": {
+        ".read":  "$boardId.matches(/^[a-z0-9]{20,40}$/)",
+        ".write": "$boardId.matches(/^[a-z0-9]{20,40}$/)",
+
+        "meta": {
+          "name":    { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "created": { ".validate": "newData.isNumber()" },
+          "version": { ".validate": "newData.isNumber()" }
+        },
+
+        "holders": {
+          "$holderId": {
+            "kind": { ".validate": "newData.val() == 'pool' || newData.val() == 'pc'" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 120" },
+            "str":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 30" },
+
+            "items": {
+              "$itemId": {
+                "n": { ".validate": "newData.isString() && newData.val().length <= 200" },
+                "d": { ".validate": "newData.isString() && newData.val().length <= 400" },
+                "q": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+                "w": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                "v": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+              }
+            }
+          }
+        },
+
+        "presence": {
+          "$clientId": { ".validate": "newData.isNumber() || newData.isString()" }
+        }
+      }
+    }
+  }
+}
