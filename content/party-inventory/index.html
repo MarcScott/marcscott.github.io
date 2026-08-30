@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party Inventory</title>
+<style>
+:root{
+  --bg:#15120f; --panel:#1f1b16; --panel-2:#272119; --line:#3a3128;
+  --ink:#ece4d6; --muted:#a2947f; --gold:#d4a843; --gold-dim:#8a6f2c;
+  --pool:#8c4a2f; --ok:#6f9d5c; --warn:#c98a2b; --bad:#b4483c;
+  --radius:10px;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink); font:15px/1.45 var(--sans);
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0}
+.muted{color:var(--muted)}
+.tiny{font-size:12px}
+
+/* ---------- controls ---------- */
+input[type=text],input[type=number],select,textarea{
+  background:#120f0c;border:1px solid var(--line);border-radius:6px;
+  padding:5px 7px;min-width:0;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold-dim);outline-offset:-1px}
+.btn{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 11px;color:var(--ink);
+}
+.btn:hover{border-color:var(--gold-dim);background:#2f2820}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#241c09;font-weight:600}
+.btn.primary:hover{background:#e5bb56}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted);padding:4px 6px}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;
+  padding:10px 16px;background:linear-gradient(#231d17,#1b1712);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+}
+.topbar h1{font-size:19px;letter-spacing:.3px;white-space:nowrap}
+.topbar h1 span{color:var(--gold)}
+#partyName{width:min(30ch,40vw);background:none;border:none;border-bottom:1px dashed var(--line);
+  border-radius:0;padding:3px 2px;font-family:var(--serif);font-size:16px}
+#partyName:hover{border-bottom-color:var(--gold-dim)}
+.grand{display:flex;gap:16px;margin-left:auto;flex-wrap:wrap}
+.grand div{text-align:right;line-height:1.2}
+.grand b{display:block;font-size:15px;font-weight:600}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ---------- add bar ---------- */
+.addbar{border-bottom:1px solid var(--line);background:var(--panel);padding:0 16px}
+.tabs{display:flex;gap:2px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 12px;color:var(--muted)}
+.tab[aria-selected=true]{color:var(--gold);border-bottom-color:var(--gold)}
+form.add{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:10px 0 14px}
+form.add[hidden]{display:none}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.field.grow{flex:1 1 220px}
+.field.grow select,.field.grow input{width:100%}
+#bookItem{min-width:min(46ch,80vw)}
+.qty-in{width:72px}
+.chk{display:flex;align-items:center;gap:6px;padding-bottom:6px;color:var(--muted);font-size:13px}
+
+/* ---------- board ---------- */
+.board{display:grid;grid-template-columns:minmax(290px,1fr) 2.1fr;gap:14px;padding:14px 16px 40px;align-items:start}
+.chars{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
+#addChar{grid-column:1/-1;justify-self:start}
+@media (max-width:900px){.board{grid-template-columns:1fr}}
+
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.panel.pool{border-color:#5d3421;box-shadow:inset 0 2px 0 var(--pool)}
+.panel.drop-on{outline:2px dashed var(--gold);outline-offset:-3px;background:#2a2318}
+.panel > header{padding:9px 11px 8px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.pname{
+  background:none;border:none;border-radius:0;padding:1px 2px;width:100%;
+  font-family:var(--serif);font-size:17px;border-bottom:1px dashed transparent;
+}
+.pname:hover{border-bottom-color:var(--gold-dim)}
+.pmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+.pmeta input[type=number]{width:52px;padding:2px 4px}
+.pmeta select{padding:2px 4px}
+
+/* encumbrance */
+.enc{padding:8px 11px;border-bottom:1px solid var(--line);font-size:12px}
+.bar{height:7px;border-radius:4px;background:#0f0d0a;overflow:hidden;margin-top:5px;border:1px solid #0a0806}
+.bar i{display:block;height:100%;background:var(--ok);transition:width .18s}
+.enc.over .bar i{background:var(--warn)}
+.enc.way-over .bar i{background:var(--bad)}
+.enc .note{margin-top:5px;color:var(--warn)}
+.enc.way-over .note{color:var(--bad)}
+
+/* coins */
+.coins{display:grid;grid-template-columns:repeat(3,1fr);gap:5px 7px;padding:8px 11px;border-bottom:1px solid var(--line);align-items:center}
+.coin{display:flex;align-items:center;gap:4px}
+.coin input{width:100%;padding:2px 4px;text-align:right}
+.coin span{font-size:11px;color:var(--muted)}
+
+/* items */
+ul.items{list-style:none;margin:0;padding:5px;min-height:64px;flex:1;display:flex;flex-direction:column;gap:4px}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:18px 8px;font-style:italic}
+li.item{
+  display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;
+  background:var(--panel-2);border:1px solid #322a21;border-radius:7px;padding:5px 7px;
+}
+li.item:hover{border-color:var(--gold-dim)}
+li.item.custom{border-left:3px solid var(--gold)}
+li.item.ghosted{opacity:.35}
+.grip{color:#6a5c4a;cursor:grab;touch-action:none;padding:2px 3px;line-height:1;user-select:none;font-size:15px}
+.grip:active{cursor:grabbing}
+.iname{font-weight:600;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.iqty{color:var(--gold);font-weight:600;white-space:nowrap}
+.isub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.idetail{font-size:11.5px;color:#8b8070;margin-top:2px;display:none}
+li.item.open .idetail{display:block}
+.irow-actions{display:flex;gap:1px;align-items:center}
+.irow-actions svg{display:block}
+.irow-actions .btn.ghost{font-size:13px;padding:3px 5px}
+@media (pointer:coarse){
+  .grip{padding:9px 7px;font-size:17px}
+  .irow-actions .btn.ghost{padding:9px 8px}
+}
+
+.panel > footer{
+  display:flex;justify-content:space-between;gap:8px;padding:7px 11px;
+  border-top:1px solid var(--line);background:var(--panel-2);font-size:12.5px;
+}
+.panel > footer b{color:var(--ink);font-weight:600}
+
+/* ---------- drag ghost + popovers ---------- */
+#ghost{
+  position:fixed;z-index:100;pointer-events:none;background:var(--panel-2);
+  border:1px solid var(--gold);border-radius:7px;padding:5px 10px;font-size:13px;
+  box-shadow:0 8px 24px #000a;transform:translate(-50%,-140%);white-space:nowrap;
+}
+.pop{
+  position:fixed;z-index:90;background:var(--panel);border:1px solid var(--gold-dim);
+  border-radius:9px;padding:11px;box-shadow:0 12px 34px #000c;min-width:230px;
+}
+.pop h3{font-size:14px;margin-bottom:8px}
+.pop .row{display:flex;gap:6px;align-items:center;margin-top:8px}
+.pop input[type=range]{width:100%;accent-color:var(--gold)}
+.pop .quick{display:flex;gap:5px}
+.pop .quick .btn{flex:1;padding:4px 0;font-size:13px}
+.movelist{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto}
+.movelist .btn{text-align:left;width:100%}
+
+dialog{
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:12px;padding:0;max-width:min(560px,94vw);
+}
+dialog::backdrop{background:#000a}
+dialog header{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+dialog .body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+dialog footer{padding:11px 16px;border-top:1px solid var(--line);display:flex;gap:7px;justify-content:flex-end}
+dialog .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+dialog .field input,dialog .field select,dialog .field textarea{width:100%}
+blockquote{
+  margin:0;padding:8px 12px;border-left:3px solid var(--gold-dim);
+  background:#1a1712;font-family:var(--serif);font-size:14px;
+}
+table.rules{border-collapse:collapse;width:100%;font-size:13px}
+table.rules th,table.rules td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
+
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:120;
+  background:var(--panel-2);border:1px solid var(--gold-dim);border-radius:8px;
+  padding:8px 16px;box-shadow:0 8px 24px #000a;
+}
+
+@media print{
+  .topbar .actions,.addbar,.grip,.irow-actions,#ghost,.pop{display:none!important}
+  body{background:#fff;color:#000}
+  .panel,li.item{border-color:#bbb;background:#fff;break-inside:avoid}
+  .panel > header,.panel > footer,li.item{background:#fff}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Party <span>Inventory</span></h1>
+  <input id="partyName" type="text" aria-label="Party name">
+  <div class="grand">
+    <div><span class="tiny muted">Carried</span><b id="grandWeight">0 lb</b></div>
+    <div><span class="tiny muted">Total value</span><b id="grandValue">—</b></div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnSave">Save file</button>
+    <button class="btn" id="btnLoad">Load file</button>
+    <button class="btn ghost" id="btnRules" title="Carrying capacity rules">Rules</button>
+    <button class="btn ghost" id="btnReset" title="Start a new, empty party">Reset</button>
+    <input type="file" id="fileIn" accept="application/json,.json" hidden>
+  </div>
+</header>
+
+<section class="addbar">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabBook" aria-selected="true">From the rulebook</button>
+    <button class="tab" role="tab" id="tabCustom" aria-selected="false">Custom / homebrew</button>
+  </div>
+
+  <form class="add" id="bookForm">
+    <div class="field"><label for="bookCat">Category</label>
+      <select id="bookCat"></select></div>
+    <div class="field"><label for="bookFilter">Search</label>
+      <input type="text" id="bookFilter" placeholder="rope, lantern…" size="14"></div>
+    <div class="field grow"><label for="bookItem">Item</label>
+      <select id="bookItem"></select></div>
+    <div class="field"><label for="bookQty">Qty</label>
+      <input type="number" id="bookQty" class="qty-in" value="1" min="1" step="1"></div>
+    <div class="field"><label for="bookDest">Add to</label>
+      <select id="bookDest"></select></div>
+    <button class="btn primary" type="submit">Add</button>
+  </form>
+
+  <form class="add" id="customForm" hidden>
+    <div class="field grow"><label for="cName">Name</label>
+      <input type="text" id="cName" placeholder="Sunblade of the Quiet Watch" required></div>
+    <div class="field"><label for="cQty">Qty</label>
+      <input type="number" id="cQty" class="qty-in" value="1" min="1" step="1"></div>
+    <div class="field"><label for="cWeight">Weight (lb, each)</label>
+      <input type="number" id="cWeight" class="qty-in" value="0" min="0" step="0.25"></div>
+    <div class="field"><label for="cValue">Value each</label>
+      <input type="number" id="cValue" class="qty-in" value="0" min="0" step="0.01"></div>
+    <div class="field"><label for="cCoin">Coin</label>
+      <select id="cCoin"><option>GP</option><option>PP</option><option>EP</option><option>SP</option><option>CP</option></select></div>
+    <div class="field"><label for="cCat">Category</label>
+      <select id="cCat"></select></div>
+    <div class="field grow"><label for="cNotes">Notes</label>
+      <input type="text" id="cNotes" placeholder="Requires attunement; sheds dim light 10 ft"></div>
+    <div class="field"><label for="cDest">Add to</label>
+      <select id="cDest"></select></div>
+    <label class="chk"><input type="checkbox" id="cRemember" checked> Remember</label>
+    <button class="btn primary" type="submit">Add</button>
+  </form>
+</section>
+
+<main class="board">
+  <div id="poolWrap"></div>
+  <div class="chars" id="chars"></div>
+</main>
+
+<dialog id="editDlg">
+  <form method="dialog" id="editForm">
+    <header><h2 id="editTitle">Edit item</h2></header>
+    <div class="body">
+      <div class="field"><label for="eName">Name</label><input type="text" id="eName" required></div>
+      <div class="grid2">
+        <div class="field"><label for="eQty">Quantity</label><input type="number" id="eQty" min="1" step="1"></div>
+        <div class="field"><label for="eCat">Category</label><select id="eCat"></select></div>
+        <div class="field"><label for="eWeight">Weight each (lb)</label><input type="number" id="eWeight" min="0" step="0.25"></div>
+        <div class="field"><label for="eValue">Value each</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" id="eValue" min="0" step="0.01">
+            <select id="eCoin"><option>GP</option><option>PP</option><option>EP</option><option>SP</option><option>CP</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="field"><label for="eNotes">Notes</label><textarea id="eNotes" rows="2"></textarea></div>
+    </div>
+    <footer>
+      <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="ok" id="editOk">Save</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="rulesDlg">
+  <header><h2>Carrying capacity</h2></header>
+  <div class="body">
+    <blockquote>Your size and Strength score determine the maximum weight in pounds that you can carry, as shown in the Carrying Capacity table. The table also shows the maximum weight you can drag, lift, or push.<br><br>
+    While dragging, lifting, or pushing weight in excess of the maximum weight you can carry, your Speed can be no more than 5 feet.</blockquote>
+    <p class="tiny muted">Player's Handbook (2024), Rules Glossary, "Carrying Capacity", p. 362.</p>
+    <table class="rules">
+      <tr><th>Creature size</th><th>Carry</th><th>Drag / lift / push</th></tr>
+      <tr><td>Tiny</td><td>Str × 7.5 lb.</td><td>Str × 15 lb.</td></tr>
+      <tr><td>Small/Medium</td><td>Str × 15 lb.</td><td>Str × 30 lb.</td></tr>
+      <tr><td>Large</td><td>Str × 30 lb.</td><td>Str × 60 lb.</td></tr>
+      <tr><td>Huge</td><td>Str × 60 lb.</td><td>Str × 120 lb.</td></tr>
+      <tr><td>Gargantuan</td><td>Str × 120 lb.</td><td>Str × 240 lb.</td></tr>
+    </table>
+    <p class="tiny muted">This page turns the bar amber past the carry column and red past the drag/lift/push column.
+      <b>Powerful Build</b> ("You also count as one size larger when determining your carrying capacity",
+      the Goliath trait, PHB p. 192) is the checkbox on each character.</p>
+    <p class="tiny muted">Coins: "A coin weighs about a third of an ounce, so fifty coins weigh a pound" (PHB p. 213).
+      Coin weight is counted in every total; untick the <em>weight</em> box beside a purse to leave it out.</p>
+  </div>
+  <footer><form method="dialog"><button class="btn primary">Close</button></form></footer>
+</dialog>
+
+<script src="items.js"></script>
+<script>
+'use strict';
+
+/* ============================== constants ============================== */
+const STORAGE_KEY = 'dnd-party-inventory-v1';
+const FORMAT = 'dnd-party-inventory';
+const VERSION = 1;
+
+const SIZES = ['Tiny','Small','Medium','Large','Huge','Gargantuan'];
+const CARRY_PER_STR = {Tiny:7.5, Small:15, Medium:15, Large:30, Huge:60, Gargantuan:120};
+const COIN_DEFS = [['pp','PP',1000],['gp','GP',100],['ep','EP',50],['sp','SP',10],['cp','CP',1]];
+const COIN_VALUE = Object.fromEntries(COIN_DEFS.map(([k,l,v]) => [l, v]));
+const CUSTOM_CATS = ['Magic Item','Potion / Consumable','Treasure & Valuables','Quest Item','Trade Goods','Clothing','Other'];
+const ALL_CATS = [...CATEGORY_ORDER, ...CUSTOM_CATS];
+
+const uid = () => 'i' + Math.random().toString(36).slice(2, 10);
+const $ = s => document.querySelector(s);
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ============================== state ============================== */
+function blankCoins(){ return {pp:0, gp:0, ep:0, sp:0, cp:0}; }
+
+function newCharacter(name){
+  return {id:uid(), kind:'pc', name, str:10, size:'Medium', powerfulBuild:false,
+          countCoinWeight:true, coins:blankCoins(), items:[]};
+}
+
+function defaultState(){
+  return {
+    format:FORMAT, version:VERSION,
+    partyName:'The Measure of Innocence',
+    holders:[
+      {id:'party', kind:'pool', name:'Party Stash', countCoinWeight:true, coins:blankCoins(), items:[]},
+      newCharacter('Sir Gavin'), newCharacter('Thrumble'),
+      newCharacter('Maple'),     newCharacter('Dove'),
+    ],
+    homebrew:[],
+  };
+}
+
+let state = load() || defaultState();
+
+/* ============================== helpers ============================== */
+const pool     = () => state.holders.find(h => h.kind === 'pool');
+const chars    = () => state.holders.filter(h => h.kind === 'pc');
+const holderBy = id => state.holders.find(h => h.id === id);
+
+function findItem(itemUid){
+  for(const h of state.holders){
+    const it = h.items.find(i => i.uid === itemUid);
+    if(it) return {holder:h, item:it};
+  }
+  return {};
+}
+
+/** Two stacks merge only if every printed detail matches. */
+const stackKey = i => [i.n, i.c, i.w, i.v, i.d || '', i.custom ? 1 : 0].join('|');
+
+function coinTotalCp(coins){ return COIN_DEFS.reduce((t,[k,,v]) => t + (coins[k]||0) * v, 0); }
+function coinCount(coins){ return COIN_DEFS.reduce((t,[k]) => t + (coins[k]||0), 0); }
+
+function itemsWeight(h){ return h.items.reduce((t,i) => t + i.w * i.q, 0); }
+function coinWeight(h){ return h.countCoinWeight === false ? 0 : coinCount(h.coins) / 50; }
+function totalWeight(h){ return itemsWeight(h) + coinWeight(h); }
+function totalValueCp(h){ return h.items.reduce((t,i) => t + i.v * i.q, 0) + coinTotalCp(h.coins); }
+
+function capacityOf(h){
+  if(h.kind !== 'pc') return null;
+  let size = h.size;
+  if(h.powerfulBuild){                       // PHB p.194: one size larger for carrying capacity
+    const i = SIZES.indexOf(size);
+    if(i > -1 && i < SIZES.length - 1) size = SIZES[i+1];
+  }
+  const carry = (h.str || 0) * (CARRY_PER_STR[size] || 15);
+  return {carry, push:carry * 2};
+}
+
+function fmtWeight(n){
+  const r = Math.round(n * 100) / 100;
+  return r.toLocaleString(undefined, {maximumFractionDigits:2}) + ' lb';
+}
+
+/** Copper pieces -> "1,500 GP" or "12 GP 4 SP 5 CP". Prices read in gold, as the book
+    prints them, so platinum and electrum are accepted in purses but never emitted here. */
+function fmtMoney(cp){
+  cp = Math.round(cp);
+  if(cp <= 0) return '—';
+  const out = [];
+  let rest = cp;
+  for(const [,label,val] of COIN_DEFS){
+    if(label === 'PP' || label === 'EP') continue;
+    const n = Math.floor(rest / val);
+    if(n){ out.push(n.toLocaleString() + ' ' + label); rest -= n * val; }
+  }
+  return out.join(' ');
+}
+
+function toast(msg){
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/* ============================== persistence ============================== */
+function save(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e){ /* private browsing, quota — the file export is the real save */ }
+}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? migrate(JSON.parse(raw)) : null;
+  }catch(e){ return null; }
+}
+
+/** Accept anything shaped like a save file; fill in whatever a hand-edited one omits. */
+function migrate(data){
+  if(!data || data.format !== FORMAT) throw new Error('Not a party inventory file.');
+  if(+data.version > VERSION) throw new Error('That file was written by a newer version of this page.');
+  const s = {
+    format:FORMAT, version:VERSION,
+    partyName: String(data.partyName || 'The Party'),
+    holders: [],
+    homebrew: Array.isArray(data.homebrew) ? data.homebrew.map(cleanDef) : [],
+  };
+  for(const h of (data.holders || [])){
+    const kind = h.kind === 'pool' ? 'pool' : 'pc';
+    s.holders.push({
+      id: String(h.id || uid()),
+      kind,
+      name: String(h.name || (kind === 'pool' ? 'Party Stash' : 'Adventurer')),
+      str: clamp(Math.round(+h.str || 10), 1, 30),
+      size: SIZES.includes(h.size) ? h.size : 'Medium',
+      powerfulBuild: !!h.powerfulBuild,
+      countCoinWeight: h.countCoinWeight !== false,
+      coins: Object.assign(blankCoins(), sanitiseCoins(h.coins)),
+      items: (h.items || []).map(cleanItem).filter(Boolean),
+    });
+  }
+  if(!s.holders.some(h => h.kind === 'pool')){
+    s.holders.unshift({id:'party', kind:'pool', name:'Party Stash', countCoinWeight:true, coins:blankCoins(), items:[]});
+  }
+  return s;
+}
+
+function sanitiseCoins(c){
+  const out = {};
+  for(const [k] of COIN_DEFS) out[k] = Math.max(0, Math.round(+(c || {})[k] || 0));
+  return out;
+}
+
+function cleanDef(d){
+  return {n:String(d.n || 'Item'), c:String(d.c || 'Other'),
+          w:Math.max(0, +d.w || 0), v:Math.max(0, Math.round(+d.v || 0)),
+          d:d.d ? String(d.d) : '', custom:true};
+}
+
+function cleanItem(i){
+  if(!i || !i.n) return null;
+  return {uid:String(i.uid || uid()), n:String(i.n), c:String(i.c || 'Other'),
+          w:Math.max(0, +i.w || 0), v:Math.max(0, Math.round(+i.v || 0)),
+          d:i.d ? String(i.d) : '', custom:!!i.custom,
+          q:Math.max(1, Math.round(+i.q || 1))};
+}
+
+/* ============================== mutations ============================== */
+/** Add `def` (a catalogue entry or custom definition) to a holder, merging into a like stack. */
+function addToHolder(holderId, def, qty){
+  const h = holderBy(holderId) || pool();
+  const incoming = {uid:uid(), n:def.n, c:def.c, w:def.w, v:def.v, d:def.d || '', custom:!!def.custom, q:qty};
+  const twin = h.items.find(i => stackKey(i) === stackKey(incoming));
+  if(twin) twin.q += qty; else h.items.push(incoming);
+  commit();
+}
+
+function moveItem(itemUid, toId, qty){
+  const {holder:from, item} = findItem(itemUid);
+  const to = holderBy(toId);
+  if(!from || !to || from === to) return;
+  qty = clamp(Math.round(qty), 1, item.q);
+
+  const twin = to.items.find(i => stackKey(i) === stackKey(item));
+  if(twin) twin.q += qty;
+  else to.items.push({...item, uid:uid(), q:qty});
+
+  item.q -= qty;
+  if(item.q <= 0) from.items = from.items.filter(i => i !== item);
+  commit();
+}
+
+function deleteItem(itemUid){
+  const {holder, item} = findItem(itemUid);
+  if(!holder) return;
+  holder.items = holder.items.filter(i => i !== item);
+  commit();
+}
+
+function commit(){ save(); render(); }
+
+/* ============================== rendering ============================== */
+const poolWrap = $('#poolWrap'), charsWrap = $('#chars');
+
+function render(){
+  $('#partyName').value = state.partyName;
+  poolWrap.innerHTML = panelHTML(pool());
+  charsWrap.innerHTML = chars().map(panelHTML).join('') +
+    `<button class="btn ghost" id="addChar">+ Add character</button>`;
+  refreshTotals();
+  syncDestSelects();
+  rebuildCategorySelect();
+}
+
+function panelHTML(h){
+  const isPool = h.kind === 'pool';
+  const cap = capacityOf(h);
+  const carried = totalWeight(h);
+
+  let enc = '';
+  if(cap){
+    const pct = cap.carry > 0 ? Math.min(100, carried / cap.carry * 100) : 0;
+    const over = carried > cap.carry, wayOver = carried > cap.push;
+    const cls = wayOver ? 'enc way-over' : over ? 'enc over' : 'enc';
+    const note = wayOver
+      ? `Over the drag/lift/push maximum of ${fmtWeight(cap.push)} — this load can't be shifted at all.`
+      : over
+        ? `Over carrying capacity: dragging, lifting or pushing this, Speed is no more than 5 feet.`
+        : '';
+    enc = `<div class="${cls}">
+        <span><b>${fmtWeight(carried)}</b> <span class="muted">of ${fmtWeight(cap.carry)} carried</span></span>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        ${note ? `<div class="note tiny">${note}</div>` : ''}
+      </div>`;
+  }else{
+    enc = `<div class="enc"><span><b>${fmtWeight(carried)}</b> <span class="muted">in the stash — nobody is carrying this</span></span></div>`;
+  }
+
+  const header = isPool
+    ? `<header>
+         <input class="pname" value="${esc(h.name)}" data-name="${h.id}" aria-label="Stash name">
+         <div class="pmeta">Loot lands here first — drag it out to a character.</div>
+       </header>`
+    : `<header>
+         <input class="pname" value="${esc(h.name)}" data-name="${h.id}" aria-label="Character name">
+         <div class="pmeta">
+           <label>Str <input type="number" min="1" max="30" step="1" value="${h.str}" data-str="${h.id}"></label>
+           <label><select data-size="${h.id}">${SIZES.map(s => `<option${s === h.size ? ' selected':''}>${s}</option>`).join('')}</select></label>
+           <label title="Counts as one size larger for carrying capacity (PHB p. 192)">
+             <input type="checkbox" data-pb="${h.id}"${h.powerfulBuild ? ' checked':''}> Powerful Build</label>
+           <button class="btn ghost tiny" data-delchar="${h.id}" title="Remove this character">✕</button>
+         </div>
+       </header>`;
+
+  const coins = `<div class="coins">
+      ${COIN_DEFS.map(([k,label]) => `<label class="coin"><span>${label}</span>
+        <input type="number" min="0" step="1" value="${h.coins[k]||0}" data-coin="${h.id}:${k}" aria-label="${label} held by ${esc(h.name)}"></label>`).join('')}
+      <label class="chk tiny" title="50 coins weigh 1 lb (PHB p. 213)" style="padding:0">
+        <input type="checkbox" data-coinw="${h.id}"${h.countCoinWeight === false ? '' : ' checked'}> weight</label>
+    </div>`;
+
+  const items = h.items.length
+    ? h.items.map(i => itemHTML(i, h)).join('')
+    : `<li class="empty">${isPool ? 'Nothing in the stash.' : 'Carrying nothing.'}</li>`;
+
+  return `<section class="panel${isPool ? ' pool':''}" data-holder="${h.id}">
+      ${header}${enc}${coins}
+      <ul class="items">${items}</ul>
+      <footer>
+        <span>${h.items.reduce((t,i) => t + i.q, 0)} item${h.items.reduce((t,i)=>t+i.q,0) === 1 ? '' : 's'}</span>
+        <span class="muted">value <b>${fmtMoney(totalValueCp(h))}</b></span>
+      </footer>
+    </section>`;
+}
+
+/* Inline SVG rather than ✎/✕ characters, which some systems render from an emoji font. */
+const svg = d => `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" `
+  + `stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  move: svg('<path d="M2.5 5.5h11M10.5 2.5l3 3M13.5 10.5h-11M5.5 13.5l-3-3"/>'),
+  edit: svg('<path d="M11.4 1.9 14.1 4.6 5.4 13.3 2 14l.7-3.4z"/><path d="M9.7 3.6l2.7 2.7"/>'),
+  del:  svg('<path d="M3.8 3.8l8.4 8.4M12.2 3.8l-8.4 8.4"/>'),
+};
+
+function itemHTML(i, h){
+  const sub = [fmtWeight(i.w * i.q), i.v ? fmtMoney(i.v * i.q) : null].filter(Boolean).join(' · ');
+  return `<li class="item${i.custom ? ' custom':''}" data-uid="${i.uid}" data-holder-of="${h.id}">
+      <span class="grip" title="Drag to another character" aria-hidden="true">⠿</span>
+      <div>
+        <div class="iname">${esc(i.n)}${i.q > 1 ? ` <span class="iqty">×${i.q}</span>` : ''}</div>
+        <div class="isub">${sub}${i.d ? ` · <span class="detail-toggle" style="cursor:pointer;text-decoration:underline dotted">details</span>` : ''}</div>
+        ${i.d ? `<div class="idetail">${esc(i.d)}</div>` : ''}
+      </div>
+      <div class="irow-actions">
+        <button class="btn ghost" data-act="move" title="Move to…" aria-label="Move ${esc(i.n)}">${ICON.move}</button>
+        <button class="btn ghost" data-act="edit" title="Edit" aria-label="Edit ${esc(i.n)}">${ICON.edit}</button>
+        <button class="btn ghost" data-act="del" title="Delete" aria-label="Delete ${esc(i.n)}">${ICON.del}</button>
+      </div>
+    </li>`;
+}
+
+/** Cheap path: recompute the readouts without rebuilding the item lists. */
+function refreshTotals(){
+  const all = state.holders;
+  $('#grandWeight').textContent = fmtWeight(all.reduce((t,h) => t + totalWeight(h), 0));
+  $('#grandValue').textContent  = fmtMoney(all.reduce((t,h) => t + totalValueCp(h), 0));
+}
+
+function updatePanel(h){
+  const el = document.querySelector(`.panel[data-holder="${h.id}"]`);
+  if(!el) return;
+  const cap = capacityOf(h), carried = totalWeight(h);
+  const enc = el.querySelector('.enc');
+  if(enc && cap){
+    const pct = cap.carry > 0 ? Math.min(100, carried / cap.carry * 100) : 0;
+    enc.className = 'enc' + (carried > cap.push ? ' way-over' : carried > cap.carry ? ' over' : '');
+    enc.querySelector('span b').textContent = fmtWeight(carried);
+    enc.querySelector('span .muted').textContent = `of ${fmtWeight(cap.carry)} carried`;
+    enc.querySelector('.bar i').style.width = pct + '%';
+    let note = enc.querySelector('.note');
+    const text = carried > cap.push
+      ? `Over the drag/lift/push maximum of ${fmtWeight(cap.push)} — this load can't be shifted at all.`
+      : carried > cap.carry
+        ? `Over carrying capacity: dragging, lifting or pushing this, Speed is no more than 5 feet.`
+        : '';
+    if(text && !note){ note = document.createElement('div'); note.className = 'note tiny'; enc.appendChild(note); }
+    if(note){ note.textContent = text; note.hidden = !text; }
+  }else if(enc){
+    enc.querySelector('span b').textContent = fmtWeight(carried);
+  }
+  const val = el.querySelector('footer b');
+  if(val) val.textContent = fmtMoney(totalValueCp(h));
+  refreshTotals();
+}
+
+/* ============================== add forms ============================== */
+const bookCat = $('#bookCat'), bookItem = $('#bookItem'), bookFilter = $('#bookFilter');
+
+function catalogueEntries(){
+  return ITEMS.concat(state.homebrew.map(d => ({...d, c:d.c})));
+}
+
+function rebuildCategorySelect(){
+  const keep = bookCat.value;
+  const cats = [...CATEGORY_ORDER];
+  if(state.homebrew.length) cats.push('★ Homebrew');
+  bookCat.innerHTML = `<option value="">All categories</option>` +
+    cats.map(c => `<option${c === keep ? ' selected':''}>${esc(c)}</option>`).join('');
+  if(keep) bookCat.value = keep;
+  rebuildItemSelect();
+}
+
+function rebuildItemSelect(){
+  const cat = bookCat.value;
+  const q = bookFilter.value.trim().toLowerCase();
+  const keep = bookItem.value;
+
+  let list;
+  if(cat === '★ Homebrew') list = state.homebrew.map(d => ({...d}));
+  else list = ITEMS.concat(state.homebrew).filter(i => !cat || i.c === cat);
+  if(q) list = list.filter(i => (i.n + ' ' + (i.d||'')).toLowerCase().includes(q));
+
+  const groups = new Map();
+  for(const i of list){
+    const key = i.custom ? '★ Homebrew' : i.c;
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
+  }
+  const order = [...CATEGORY_ORDER, '★ Homebrew'].filter(c => groups.has(c));
+
+  bookItem.innerHTML = order.map(c => `<optgroup label="${esc(c)}">` + groups.get(c).map(i => {
+    const label = `${i.n} — ${i.w ? fmtWeight(i.w) : 'no weight'} — ${i.v ? fmtMoney(i.v) : 'no value'}`;
+    return `<option value="${esc(stackKey({...i, custom:!!i.custom}))}">${esc(label)}</option>`;
+  }).join('') + '</optgroup>').join('') || `<option value="">— nothing matches —</option>`;
+
+  if(keep && [...bookItem.options].some(o => o.value === keep)) bookItem.value = keep;
+  const n = list.length;
+  bookItem.title = `${n} item${n === 1 ? '' : 's'}`;
+}
+
+function syncDestSelects(){
+  const opts = state.holders.map(h => `<option value="${h.id}">${esc(h.name)}</option>`).join('');
+  for(const sel of [$('#bookDest'), $('#cDest')]){
+    const keep = sel.value;
+    sel.innerHTML = opts;
+    sel.value = (keep && state.holders.some(h => h.id === keep)) ? keep : pool().id;
+  }
+  const catOpts = ALL_CATS.map(c => `<option>${esc(c)}</option>`).join('');
+  for(const sel of [$('#cCat'), $('#eCat')]){
+    const keep = sel.value;
+    sel.innerHTML = catOpts;
+    sel.value = keep || 'Magic Item';
+  }
+}
+
+bookCat.addEventListener('change', rebuildItemSelect);
+bookFilter.addEventListener('input', rebuildItemSelect);
+
+$('#bookForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const key = bookItem.value;
+  const def = ITEMS.concat(state.homebrew).find(i => stackKey({...i, custom:!!i.custom}) === key);
+  if(!def) return toast('Pick an item first.');
+  const qty = Math.max(1, Math.round(+$('#bookQty').value || 1));
+  addToHolder($('#bookDest').value, def, qty);
+  toast(`${def.n} ×${qty} → ${holderBy($('#bookDest').value).name}`);
+});
+
+$('#customForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('#cName').value.trim();
+  if(!name) return;
+  const def = {
+    n:name, c:$('#cCat').value,
+    w:Math.max(0, +$('#cWeight').value || 0),
+    v:Math.round(Math.max(0, +$('#cValue').value || 0) * COIN_VALUE[$('#cCoin').value]),
+    d:$('#cNotes').value.trim(), custom:true,
+  };
+  const qty = Math.max(1, Math.round(+$('#cQty').value || 1));
+  if($('#cRemember').checked && !state.homebrew.some(h => stackKey(h) === stackKey(def))){
+    state.homebrew.push({...def});
+    state.homebrew.sort((a,b) => a.n.localeCompare(b.n));
+  }
+  addToHolder($('#cDest').value, def, qty);
+  toast(`${def.n} ×${qty} → ${holderBy($('#cDest').value).name}`);
+  $('#cName').value = ''; $('#cNotes').value = ''; $('#cQty').value = 1;
+  $('#cWeight').value = 0; $('#cValue').value = 0;
+  $('#cName').focus();
+});
+
+$('#tabBook').addEventListener('click', () => switchTab(true));
+$('#tabCustom').addEventListener('click', () => switchTab(false));
+function switchTab(book){
+  $('#tabBook').setAttribute('aria-selected', book);
+  $('#tabCustom').setAttribute('aria-selected', !book);
+  $('#bookForm').hidden = !book;
+  $('#customForm').hidden = book;
+}
+
+/* ============================== panel events ============================== */
+document.addEventListener('change', e => {
+  const t = e.target;
+  if(t.dataset.name != null){
+    const h = holderBy(t.dataset.name); if(!h) return;
+    h.name = t.value.trim() || h.name; save(); syncDestSelects();
+  }
+  if(t.dataset.str != null){
+    const h = holderBy(t.dataset.str); if(!h) return;
+    h.str = clamp(Math.round(+t.value || 0), 1, 30); t.value = h.str; save(); updatePanel(h);
+  }
+  if(t.dataset.size != null){
+    const h = holderBy(t.dataset.size); if(!h) return;
+    h.size = t.value; save(); updatePanel(h);
+  }
+  if(t.dataset.pb != null){
+    const h = holderBy(t.dataset.pb); if(!h) return;
+    h.powerfulBuild = t.checked; save(); updatePanel(h);
+  }
+  if(t.dataset.coinw != null){
+    const h = holderBy(t.dataset.coinw); if(!h) return;
+    h.countCoinWeight = t.checked; save(); updatePanel(h);
+  }
+  if(t.dataset.coin != null){
+    const [id, k] = t.dataset.coin.split(':');
+    const h = holderBy(id); if(!h) return;
+    h.coins[k] = Math.max(0, Math.round(+t.value || 0)); t.value = h.coins[k]; save(); updatePanel(h);
+  }
+});
+
+$('#partyName').addEventListener('change', e => { state.partyName = e.target.value.trim() || 'The Party'; save(); });
+
+document.addEventListener('click', e => {
+  const del = e.target.closest('[data-delchar]');
+  if(del){
+    const h = holderBy(del.dataset.delchar);
+    const n = h.items.reduce((t,i) => t + i.q, 0);
+    if(!confirm(`Remove ${h.name}?` + (n ? ` Their ${n} carried item${n===1?'':'s'} will move to the ${pool().name}.` : ''))) return;
+    for(const it of h.items){
+      const twin = pool().items.find(i => stackKey(i) === stackKey(it));
+      if(twin) twin.q += it.q; else pool().items.push({...it, uid:uid()});
+    }
+    pool().coins = sanitiseCoins(Object.fromEntries(COIN_DEFS.map(([k]) => [k, pool().coins[k] + h.coins[k]])));
+    state.holders = state.holders.filter(x => x !== h);
+    commit();
+    return;
+  }
+  if(e.target.id === 'addChar'){
+    state.holders.push(newCharacter('New character'));
+    commit();
+    return;
+  }
+  if(e.target.classList.contains('detail-toggle')){
+    e.target.closest('.item').classList.toggle('open');
+    return;
+  }
+  const act = e.target.closest('[data-act]');
+  if(act){
+    const li = act.closest('.item');
+    const id = li.dataset.uid;
+    if(act.dataset.act === 'del'){
+      const {item} = findItem(id);
+      if(item && (item.q === 1 || confirm(`Delete all ${item.q} × ${item.n}?`))) deleteItem(id);
+    }
+    if(act.dataset.act === 'edit') openEdit(id);
+    if(act.dataset.act === 'move') openMoveMenu(id, act.getBoundingClientRect());
+  }
+});
+
+/* ============================== drag and drop ============================== */
+/* Pointer events rather than HTML5 drag-and-drop, so this works on a tablet too. */
+let drag = null;
+
+document.addEventListener('pointerdown', e => {
+  const li = e.target.closest('.item');
+  if(!li || e.button > 0) return;
+  if(e.target.closest('button, input, select, textarea, .detail-toggle')) return;
+  // On touch/pen only the grip starts a drag, so the panel still scrolls.
+  if(e.pointerType !== 'mouse' && !e.target.closest('.grip')) return;
+
+  drag = {uid:li.dataset.uid, from:li.dataset.holderOf, li, x0:e.clientX, y0:e.clientY, active:false, id:e.pointerId};
+  // Capture keeps pointerup coming if the pointer leaves the window; not all browsers allow it.
+  try{ li.setPointerCapture(e.pointerId); }catch(err){}
+});
+
+document.addEventListener('pointermove', e => {
+  if(!drag || e.pointerId !== drag.id) return;
+  if(!drag.active){
+    if(Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+    startDrag();
+  }
+  drag.ghost.style.left = e.clientX + 'px';
+  drag.ghost.style.top  = e.clientY + 'px';
+  highlight(e.clientX, e.clientY);
+  e.preventDefault();
+});
+
+document.addEventListener('pointerup', e => {
+  if(!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  if(d.active){
+    const target = panelAt(e.clientX, e.clientY);
+    endDrag();
+    if(target && target !== d.from){
+      const {item} = findItem(d.uid);
+      if(item && (item.q === 1 || e.shiftKey)) moveItem(d.uid, target, item.q);
+      else if(item) openSplit(item, d.uid, target, {x:e.clientX, y:e.clientY});
+    }
+  }
+  drag = null;
+});
+
+document.addEventListener('pointercancel', () => { if(drag && drag.active) endDrag(); drag = null; });
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && drag && drag.active){ endDrag(); drag = null; }
+});
+
+function startDrag(){
+  drag.active = true;
+  const {item} = findItem(drag.uid);
+  const ghost = document.createElement('div');
+  ghost.id = 'ghost';
+  ghost.textContent = item ? `${item.n}${item.q > 1 ? ` ×${item.q}` : ''}` : 'item';
+  document.body.appendChild(ghost);
+  drag.ghost = ghost;
+  drag.li.classList.add('ghosted');
+  document.body.style.userSelect = 'none';
+}
+
+function endDrag(){
+  drag.ghost?.remove();
+  drag.li.classList.remove('ghosted');
+  document.querySelectorAll('.drop-on').forEach(p => p.classList.remove('drop-on'));
+  document.body.style.userSelect = '';
+}
+
+function panelAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  return el?.closest('[data-holder]')?.dataset.holder || null;
+}
+
+function highlight(x, y){
+  const id = panelAt(x, y);
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('drop-on', p.dataset.holder === id && id !== drag.from);
+  });
+}
+
+/* ============================== split / move popovers ============================== */
+let popEl = null;
+function closePop(){ popEl?.remove(); popEl = null; }
+document.addEventListener('pointerdown', e => { if(popEl && !e.target.closest('.pop')) closePop(); }, true);
+
+function placePop(el, at){
+  document.body.appendChild(el);
+  const r = el.getBoundingClientRect();
+  el.style.left = clamp(at.x - r.width / 2, 8, innerWidth  - r.width  - 8) + 'px';
+  el.style.top  = clamp(at.y + 14,          8, innerHeight - r.height - 8) + 'px';
+}
+
+/** Ask how many of a stack to move, then move them. */
+function openSplit(item, itemUid, toId, at){
+  closePop();
+  const to = holderBy(toId);
+  const el = document.createElement('div');
+  el.className = 'pop';
+  el.innerHTML = `
+    <h3>Move to ${esc(to.name)}</h3>
+    <div class="muted tiny">${esc(item.n)} — ${item.q} held</div>
+    <div class="row"><input type="number" id="splitN" min="1" max="${item.q}" value="${item.q}" style="width:74px">
+      <span class="muted tiny">of ${item.q}</span></div>
+    <input type="range" id="splitR" min="1" max="${item.q}" value="${item.q}">
+    <div class="quick">
+      <button class="btn" data-n="1">1</button>
+      <button class="btn" data-n="${Math.max(1, Math.floor(item.q / 2))}">Half</button>
+      <button class="btn" data-n="${item.q}">All</button>
+    </div>
+    <div class="row"><button class="btn primary" id="splitOk" style="flex:1">Move</button>
+      <button class="btn ghost" id="splitCancel">Cancel</button></div>`;
+  placePop(el, at);
+  popEl = el;
+
+  const n = el.querySelector('#splitN'), r = el.querySelector('#splitR');
+  n.addEventListener('input', () => r.value = clamp(+n.value || 1, 1, item.q));
+  r.addEventListener('input', () => n.value = r.value);
+  el.querySelectorAll('.quick .btn').forEach(b => b.addEventListener('click', () => {
+    n.value = r.value = b.dataset.n; go();
+  }));
+  el.querySelector('#splitOk').addEventListener('click', go);
+  el.querySelector('#splitCancel').addEventListener('click', closePop);
+  el.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); go(); }
+    if(e.key === 'Escape') closePop();
+  });
+  n.select();
+  n.focus();
+
+  function go(){
+    const qty = clamp(Math.round(+n.value || 1), 1, item.q);
+    closePop();
+    moveItem(itemUid, toId, qty);
+    toast(`${item.n} ×${qty} → ${to.name}`);
+  }
+}
+
+/** The keyboard/touch route to the same thing: pick a destination from a list. */
+function openMoveMenu(itemUid, rect){
+  closePop();
+  const {holder, item} = findItem(itemUid);
+  if(!item) return;
+  const el = document.createElement('div');
+  el.className = 'pop';
+  el.innerHTML = `<h3>Move ${esc(item.n)}${item.q > 1 ? ` ×${item.q}` : ''}</h3>
+    <div class="movelist">${state.holders.filter(h => h !== holder)
+      .map(h => `<button class="btn" data-to="${h.id}">${esc(h.name)}</button>`).join('')}</div>`;
+  placePop(el, {x:rect.left, y:rect.bottom});
+  popEl = el;
+  el.querySelectorAll('[data-to]').forEach(b => b.addEventListener('click', () => {
+    const to = b.dataset.to;
+    const at = b.getBoundingClientRect();
+    closePop();
+    if(item.q === 1){ moveItem(itemUid, to, 1); toast(`${item.n} → ${holderBy(to).name}`); }
+    else openSplit(item, itemUid, to, {x:at.left + at.width / 2, y:at.top});
+  }));
+}
+
+/* ============================== edit dialog ============================== */
+const editDlg = $('#editDlg');
+let editing = null;
+
+function openEdit(itemUid){
+  const {item} = findItem(itemUid);
+  if(!item) return;
+  editing = itemUid;
+  $('#editTitle').textContent = 'Edit ' + item.n;
+  $('#eName').value = item.n;
+  $('#eQty').value = item.q;
+  $('#eWeight').value = item.w;
+  $('#eNotes').value = item.d || '';
+  if(![...$('#eCat').options].some(o => o.value === item.c)){
+    $('#eCat').insertAdjacentHTML('beforeend', `<option>${esc(item.c)}</option>`);
+  }
+  $('#eCat').value = item.c;
+  // Show the value in the largest coin that keeps it a whole number.
+  const coin = COIN_DEFS.find(([,label,v]) => label !== 'EP' && item.v % v === 0 && item.v >= v) || ['gp','GP',100];
+  $('#eCoin').value = coin[1];
+  $('#eValue').value = item.v / coin[2];
+  editDlg.showModal();
+}
+
+/* Applied on submit rather than on the dialog's close event: submit fires only after the
+   form validates, and not every engine dispatches close reliably. */
+$('#editForm').addEventListener('submit', e => {
+  const ok = (e.submitter && e.submitter.value) === 'ok';
+  const {item} = findItem(editing);
+  editing = null;
+  if(!ok || !item) return;
+  item.n = $('#eName').value.trim() || item.n;
+  item.q = Math.max(1, Math.round(+$('#eQty').value || 1));
+  item.w = Math.max(0, +$('#eWeight').value || 0);
+  item.v = Math.round(Math.max(0, +$('#eValue').value || 0) * COIN_VALUE[$('#eCoin').value]);
+  item.c = $('#eCat').value;
+  item.d = $('#eNotes').value.trim();
+  item.custom = true;              // it no longer matches the printed entry
+  commit();
+});
+
+/* ============================== save / load ============================== */
+$('#btnSave').addEventListener('click', () => {
+  const data = {...state, savedAt:new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = state.partyName.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+    + '-inventory-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Saved ' + a.download);
+});
+
+$('#btnLoad').addEventListener('click', () => $('#fileIn').click());
+$('#fileIn').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    state = migrate(JSON.parse(await file.text()));
+    commit();
+    toast('Loaded ' + file.name);
+  }catch(err){
+    alert('Could not load that file.\n\n' + err.message);
+  }
+  e.target.value = '';
+});
+
+$('#btnReset').addEventListener('click', () => {
+  if(!confirm('Clear everything and start a fresh party? Save a file first if you want to keep this.')) return;
+  state = defaultState();
+  chars().forEach((h, n) => h.name = 'Character ' + (n + 1));
+  state.partyName = 'The Party';
+  commit();
+});
+
+$('#btnRules').addEventListener('click', () => $('#rulesDlg').showModal());
+
+/* Dropping a save file anywhere on the page loads it. */
+document.addEventListener('dragover', e => { if(e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
+document.addEventListener('drop', async e => {
+  const file = e.dataTransfer?.files?.[0];
+  if(!file || !/\.json$/i.test(file.name)) return;
+  e.preventDefault();
+  try{ state = migrate(JSON.parse(await file.text())); commit(); toast('Loaded ' + file.name); }
+  catch(err){ alert('Could not load that file.\n\n' + err.message); }
+});
+
+/* ============================== go ============================== */
+render();
+switchTab(true);
+</script>
+</body>
+</html>
