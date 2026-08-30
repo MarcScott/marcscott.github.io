@@ -241,6 +241,12 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
       <select id="cCoin"><option>GP</option><option>PP</option><option>EP</option><option>SP</option><option>CP</option></select></div>
     <div class="field"><label for="cCat">Category</label>
       <select id="cCat"></select></div>
+    <div class="field"><label for="cRarity">Rarity</label>
+      <select id="cRarity" title="Suggested value by rarity — Magic Item Rarities and Values, DMG p. 220">
+        <option value="">—</option>
+      </select></div>
+    <label class="chk" title="Halve the value for a consumable other than a Spell Scroll (DMG p. 220)">
+      <input type="checkbox" id="cConsumable"> Consumable</label>
     <div class="field grow"><label for="cNotes">Notes</label>
       <input type="text" id="cNotes" placeholder="Requires attunement; sheds dim light 10 ft"></div>
     <div class="field"><label for="cDest">Add to</label>
@@ -316,7 +322,20 @@ const SIZES = ['Tiny','Small','Medium','Large','Huge','Gargantuan'];
 const CARRY_PER_STR = {Tiny:7.5, Small:15, Medium:15, Large:30, Huge:60, Gargantuan:120};
 const COIN_DEFS = [['pp','PP',1000],['gp','GP',100],['ep','EP',50],['sp','SP',10],['cp','CP',1]];
 const COIN_VALUE = Object.fromEntries(COIN_DEFS.map(([k,l,v]) => [l, v]));
-const CUSTOM_CATS = ['Magic Item','Potion / Consumable','Treasure & Valuables','Quest Item','Trade Goods','Clothing','Other'];
+// The nine magic item categories of the Magic Item Categories table (DMG p. 216).
+// The catalogue's own categories are offered alongside these, via ALL_CATS.
+const CUSTOM_CATS = [
+  'Magic Item · Armor','Magic Item · Potion','Magic Item · Ring','Magic Item · Rod',
+  'Magic Item · Scroll','Magic Item · Staff','Magic Item · Wand','Magic Item · Weapon',
+  'Magic Item · Wondrous Item','Quest Item','Other',
+];
+
+// Magic Item Rarities and Values (DMG p. 220), in copper. The footnote: halve the value
+// for a consumable other than a Spell Scroll.
+const RARITIES = [
+  ['Common', 10_000], ['Uncommon', 40_000], ['Rare', 400_000],
+  ['Very Rare', 4_000_000], ['Legendary', 20_000_000], ['Artifact', 0],
+];
 const ALL_CATS = [...CATEGORY_ORDER, ...CUSTOM_CATS];
 
 const uid = () => 'i' + Math.random().toString(36).slice(2, 10);
@@ -698,9 +717,23 @@ function syncDestSelects(){
   for(const sel of [$('#cCat'), $('#eCat')]){
     const keep = sel.value;
     sel.innerHTML = catOpts;
-    sel.value = keep || 'Magic Item';
+    sel.value = keep || 'Magic Item · Wondrous Item';
   }
 }
+
+/* Choosing a rarity prices the item off the DMG's table; the value stays editable. */
+$('#cRarity').innerHTML = '<option value="">—</option>' + RARITIES.map(([name, cp]) =>
+  `<option value="${cp}">${name}${cp ? ' — ' + fmtMoney(cp) : ' — priceless'}</option>`).join('');
+
+function applyRarity(){
+  const cp = +$('#cRarity').value || 0;
+  if(!$('#cRarity').value) return;
+  const halved = $('#cConsumable').checked && !/Scroll/i.test($('#cName').value) ? cp / 2 : cp;
+  $('#cCoin').value = 'GP';
+  $('#cValue').value = halved / 100;
+}
+$('#cRarity').addEventListener('change', applyRarity);
+$('#cConsumable').addEventListener('change', applyRarity);
 
 bookCat.addEventListener('change', rebuildItemSelect);
 bookFilter.addEventListener('input', rebuildItemSelect);
@@ -719,11 +752,13 @@ $('#customForm').addEventListener('submit', e => {
   e.preventDefault();
   const name = $('#cName').value.trim();
   if(!name) return;
+  const rarity = $('#cRarity').selectedIndex > 0 ? $('#cRarity').selectedOptions[0].textContent.split(' — ')[0] : '';
+  const notes = $('#cNotes').value.trim();
   const def = {
     n:name, c:$('#cCat').value,
     w:Math.max(0, +$('#cWeight').value || 0),
     v:Math.round(Math.max(0, +$('#cValue').value || 0) * COIN_VALUE[$('#cCoin').value]),
-    d:$('#cNotes').value.trim(), custom:true,
+    d:[rarity, notes].filter(Boolean).join(' · '), custom:true,
   };
   const qty = Math.max(1, Math.round(+$('#cQty').value || 1));
   if($('#cRemember').checked && !state.homebrew.some(h => stackKey(h) === stackKey(def))){
@@ -734,6 +769,7 @@ $('#customForm').addEventListener('submit', e => {
   toast(`${def.n} ×${qty} → ${holderBy($('#cDest').value).name}`);
   $('#cName').value = ''; $('#cNotes').value = ''; $('#cQty').value = 1;
   $('#cWeight').value = 0; $('#cValue').value = 0;
+  $('#cRarity').selectedIndex = 0; $('#cConsumable').checked = false;
   $('#cName').focus();
 });
 
