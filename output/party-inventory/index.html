@@ -1371,8 +1371,17 @@ async function startSharing(id){
      point at the board we just left, and an edit made in that gap would go to it. */
   sync.mutateHolders = sync.pushBoard = sync.pushMeta = sync.pushHomebrew = sync.dropHolder = () => {};
   sync.peers = 0;
-  const cfg = (typeof FIREBASE_CONFIG !== 'undefined') ? FIREBASE_CONFIG : null;
-  if(!cfg || !cfg.databaseURL){ setSync('local'); return; }
+  /* Accept whichever name the config was left under: the Firebase console hands you a
+     block called firebaseConfig, and pasting it unchanged should just work. */
+  const cfg = (typeof firebaseConfig !== 'undefined' && firebaseConfig) ? firebaseConfig
+            : (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG) ? FIREBASE_CONFIG
+            : null;
+  if(!cfg){ setSync('local'); return; }
+  if(!cfg.databaseURL){
+    setSync('error', 'The config in firebase-config.js has no databaseURL. Copy it from the '
+      + 'Realtime Database page in the Firebase console and add it to the block.');
+    return;
+  }
   setSync('connecting');
   try{
     const [appMod, dbMod] = await Promise.all([
