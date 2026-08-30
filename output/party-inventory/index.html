@@ -67,7 +67,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold-dim);outlin
 
 /* ---------- add bar ---------- */
 .addbar{border-bottom:1px solid var(--line);background:var(--panel);padding:0 16px}
-.tabs{display:flex;gap:2px}
+.tabs{display:flex;gap:2px;align-items:center}
+.sortbar{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.sortbar label{letter-spacing:.6px;text-transform:uppercase;font-size:11px}
+.sortbar select{padding:3px 6px}
+#sortDir{font-size:14px;line-height:1;padding:3px 7px}
 .tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 12px;color:var(--muted)}
 .tab[aria-selected=true]{color:var(--gold);border-bottom-color:var(--gold)}
 form.add{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:10px 0 14px}
@@ -127,6 +131,8 @@ li.item{
 li.item:hover{border-color:var(--gold-dim)}
 li.item.custom{border-left:3px solid var(--gold)}
 li.item.ghosted{opacity:.35}
+li.item.insert-before{box-shadow:0 -3px 0 -1px var(--gold)}
+li.item.insert-last{box-shadow:0 3px 0 -1px var(--gold)}
 .grip{color:#6a5c4a;cursor:grab;touch-action:none;padding:2px 3px;line-height:1;user-select:none;font-size:15px}
 .grip:active{cursor:grabbing}
 .iname{font-weight:600;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
@@ -231,6 +237,16 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tabBook" aria-selected="true">From the rulebook</button>
     <button class="tab" role="tab" id="tabCustom" aria-selected="false">Custom / homebrew</button>
+    <div class="sortbar">
+      <label for="sortBy">Order</label>
+      <select id="sortBy" title="How rows are listed in every panel. Your view only — it doesn't move anyone else's.">
+        <option value="custom">As arranged</option>
+        <option value="name">Name</option>
+        <option value="weight">Weight</option>
+        <option value="value">Value</option>
+      </select>
+      <button class="btn ghost" id="sortDir" type="button" title="Reverse the order">↓</button>
+    </div>
   </div>
 
   <form class="add" id="bookForm">
@@ -381,6 +397,29 @@ const RARITIES = [
   ['Very Rare', 4_000_000], ['Legendary', 20_000_000], ['Artifact', 0],
 ];
 const ALL_CATS = [...CATEGORY_ORDER, ...CUSTOM_CATS];
+
+/* How the rows are ordered on screen. "As arranged" is the order the party actually
+   keeps them in — shared, and what dragging a row up or down changes. The others are a
+   way of looking at that order, kept per browser: sorting your own screen by weight
+   shouldn't rearrange anyone else's pack. */
+const SORT_KEY = 'dnd-party-inventory-sort';
+const SORTS = {
+  custom: null,
+  name:   (a, b) => a.n.localeCompare(b.n),
+  weight: (a, b) => (b.w * b.q) - (a.w * a.q) || a.n.localeCompare(b.n),
+  value:  (a, b) => (b.v * b.q) - (a.v * a.q) || a.n.localeCompare(b.n),
+};
+let viewSort = {by:'custom', dir:1};
+try{ Object.assign(viewSort, JSON.parse(localStorage.getItem(SORT_KEY)) || {}); }catch(e){}
+if(!(viewSort.by in SORTS)) viewSort.by = 'custom';
+
+const reorderable = () => viewSort.by === 'custom';
+
+function itemsInView(h){
+  const cmp = SORTS[viewSort.by];
+  if(!cmp) return h.items;
+  return h.items.slice().sort(viewSort.dir < 0 ? (a, b) => -cmp(a, b) : cmp);
+}
 
 const uid = () => 'i' + Math.random().toString(36).slice(2, 10);
 let ordCounter = 0;
@@ -623,6 +662,24 @@ function moveItem(itemUid, toId, qty){
   });
 }
 
+/** Move a row within its own panel: put it immediately before `beforeUid`, or last.
+    Expressed as a position relative to another row rather than as an index, so it still
+    means the right thing when replayed against a board someone else has changed. */
+function reorderItem(itemUid, beforeUid){
+  if(itemUid === beforeUid) return;
+  mutate(holders => {
+    for(const h of holders){
+      const at = h.items.findIndex(i => i.uid === itemUid);
+      if(at < 0) continue;
+      const [row] = h.items.splice(at, 1);
+      const to = beforeUid ? h.items.findIndex(i => i.uid === beforeUid) : -1;
+      if(to < 0) h.items.push(row); else h.items.splice(to, 0, row);
+      h.items.forEach((i, n) => i.ord = n);   // the array is the order; ord carries it
+      return;
+    }
+  });
+}
+
 function deleteItem(itemUid){
   mutate(holders => {
     for(const h of holders) h.items = h.items.filter(i => i.uid !== itemUid);
@@ -692,7 +749,7 @@ function panelHTML(h){
     </div>`;
 
   const items = h.items.length
-    ? h.items.map(i => itemHTML(i, h)).join('')
+    ? itemsInView(h).map(i => itemHTML(i, h)).join('')
     : `<li class="empty">${isPool ? 'Nothing in the stash.' : 'Carrying nothing.'}</li>`;
 
   return `<section class="panel${isPool ? ' pool':''}" data-holder="${h.id}">
@@ -717,7 +774,9 @@ const ICON = {
 function itemHTML(i, h){
   const sub = [fmtWeight(i.w * i.q), i.v ? fmtMoney(i.v * i.q) : null].filter(Boolean).join(' · ');
   return `<li class="item${i.custom ? ' custom':''}" data-uid="${i.uid}" data-holder-of="${h.id}">
-      <span class="grip" title="Drag to another character" aria-hidden="true">⠿</span>
+      <span class="grip" aria-hidden="true" title="${reorderable()
+        ? 'Drag to reorder, or onto another character'
+        : 'Drag onto another character. Set Order to “As arranged” to reorder within a panel.'}">⠿</span>
       <div>
         <div class="iname">${esc(i.n)}${i.q > 1 ? ` <span class="iqty">×${i.q}</span>` : ''}</div>
         <div class="isub">${sub}${i.d ? ` · <span class="detail-toggle" style="cursor:pointer;text-decoration:underline dotted">details</span>` : ''}</div>
@@ -1009,6 +1068,7 @@ document.addEventListener('pointermove', e => {
   drag.ghost.style.left = e.clientX + 'px';
   drag.ghost.style.top  = e.clientY + 'px';
   highlight(e.clientX, e.clientY);
+  edgeScroll(e.clientY);
   e.preventDefault();
 });
 
@@ -1017,8 +1077,11 @@ document.addEventListener('pointerup', e => {
   const d = drag;
   if(d.active){
     const target = panelAt(e.clientX, e.clientY);
+    const before = d.beforeUid;
     endDrag();
-    if(target && target !== d.from){
+    if(target && target === d.from){
+      if(reorderable()) reorderItem(d.uid, before);      // shuffling the pack
+    }else if(target){
       const {item} = findItem(d.uid);
       if(item && (item.q === 1 || e.shiftKey)) moveItem(d.uid, target, item.q);
       else if(item) openSplit(item, d.uid, target, {x:e.clientX, y:e.clientY});
@@ -1048,7 +1111,16 @@ function endDrag(){
   drag.ghost?.remove();
   drag.li.classList.remove('ghosted');
   document.querySelectorAll('.drop-on').forEach(p => p.classList.remove('drop-on'));
+  document.querySelectorAll('.insert-before, .insert-last').forEach(el =>
+    el.classList.remove('insert-before', 'insert-last'));
   document.body.style.userSelect = '';
+}
+
+/** Long packs run off the screen, so dragging near the edge of the window scrolls it. */
+function edgeScroll(y){
+  const margin = 70, step = 14;
+  if(y < margin) scrollBy(0, -step);
+  else if(y > innerHeight - margin) scrollBy(0, step);
 }
 
 function panelAt(x, y){
@@ -1061,6 +1133,25 @@ function highlight(x, y){
   document.querySelectorAll('.panel').forEach(p => {
     p.classList.toggle('drop-on', p.dataset.holder === id && id !== drag.from);
   });
+  document.querySelectorAll('.insert-before, .insert-last').forEach(el =>
+    el.classList.remove('insert-before', 'insert-last'));
+  drag.beforeUid = null;
+  if(id !== drag.from || !reorderable()) return;
+
+  // Over its own panel: work out which gap the row would drop into, and mark it.
+  const list = document.querySelector(`.panel[data-holder="${id}"] ul.items`);
+  if(!list) return;
+  const rows = [...list.querySelectorAll('li.item')].filter(r => r !== drag.li);
+  const landing = rows.find(r => {
+    const box = r.getBoundingClientRect();
+    return y < box.top + box.height / 2;
+  });
+  if(landing){
+    landing.classList.add('insert-before');
+    drag.beforeUid = landing.dataset.uid;
+  }else if(rows.length){
+    rows[rows.length - 1].classList.add('insert-last');
+  }
 }
 
 /* ============================== split / move popovers ============================== */
@@ -1523,6 +1614,21 @@ function paintBoards(){
       <button class="btn ghost" data-forget="${b.id}" title="Remove from this device">${ICON.del}</button>
     </div>`).join('') || '<p class="muted tiny">No other boards on this device.</p>';
 }
+
+$('#sortBy').value = viewSort.by;
+$('#sortDir').textContent = viewSort.dir < 0 ? '↑' : '↓';
+$('#sortDir').disabled = viewSort.by === 'custom';
+
+function setSort(by, dir){
+  viewSort = {by, dir};
+  try{ localStorage.setItem(SORT_KEY, JSON.stringify(viewSort)); }catch(e){}
+  $('#sortBy').value = by;
+  $('#sortDir').textContent = dir < 0 ? '↑' : '↓';
+  $('#sortDir').disabled = by === 'custom';
+  render();
+}
+$('#sortBy').addEventListener('change', e => setSort(e.target.value, viewSort.dir));
+$('#sortDir').addEventListener('click', () => setSort(viewSort.by, -viewSort.dir));
 
 $('#syncChip').addEventListener('click', () => toast($('#syncChip').title));
 $('#btnBoards').addEventListener('click', () => { paintBoards(); boardsDlg.showModal(); });
