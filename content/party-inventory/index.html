@@ -218,7 +218,7 @@ table.rules th{background:var(--panel-2);color:var(--muted);font-weight:600}
     <div class="field"><label for="bookCat">Category</label>
       <select id="bookCat"></select></div>
     <div class="field"><label for="bookFilter">Search</label>
-      <input type="text" id="bookFilter" placeholder="rope, lantern…" size="14"></div>
+      <input type="text" id="bookFilter" placeholder="rope, flame tongue…" size="14"></div>
     <div class="field grow"><label for="bookItem">Item</label>
       <select id="bookItem"></select></div>
     <div class="field"><label for="bookQty">Qty</label>
@@ -322,13 +322,10 @@ const SIZES = ['Tiny','Small','Medium','Large','Huge','Gargantuan'];
 const CARRY_PER_STR = {Tiny:7.5, Small:15, Medium:15, Large:30, Huge:60, Gargantuan:120};
 const COIN_DEFS = [['pp','PP',1000],['gp','GP',100],['ep','EP',50],['sp','SP',10],['cp','CP',1]];
 const COIN_VALUE = Object.fromEntries(COIN_DEFS.map(([k,l,v]) => [l, v]));
-// The nine magic item categories of the Magic Item Categories table (DMG p. 216).
-// The catalogue's own categories are offered alongside these, via ALL_CATS.
-const CUSTOM_CATS = [
-  'Magic Item · Armor','Magic Item · Potion','Magic Item · Ring','Magic Item · Rod',
-  'Magic Item · Scroll','Magic Item · Staff','Magic Item · Wand','Magic Item · Weapon',
-  'Magic Item · Wondrous Item','Quest Item','Other',
-];
+// Categories a custom item can use on top of the catalogue's own. The nine magic item
+// categories of the Magic Item Categories table (DMG p. 216) are already in
+// CATEGORY_ORDER, since the catalogue carries the magic item index.
+const CUSTOM_CATS = ['Quest Item','Other'];
 
 // Magic Item Rarities and Values (DMG p. 220), in copper. The footnote: halve the value
 // for a consumable other than a Spell Scroll.
@@ -678,10 +675,17 @@ function rebuildCategorySelect(){
   rebuildItemSelect();
 }
 
+let itemSelectSig = null;
 function rebuildItemSelect(){
   const cat = bookCat.value;
   const q = bookFilter.value.trim().toLowerCase();
   const keep = bookItem.value;
+
+  // The catalogue runs to well over a thousand entries; only rebuild when the
+  // filters or the homebrew list have actually moved.
+  const sig = `${cat}|${q}|${state.homebrew.length}`;
+  if(sig === itemSelectSig) return;
+  itemSelectSig = sig;
 
   let list;
   if(cat === '★ Homebrew') list = state.homebrew.map(d => ({...d}));
@@ -736,7 +740,11 @@ $('#cRarity').addEventListener('change', applyRarity);
 $('#cConsumable').addEventListener('change', applyRarity);
 
 bookCat.addEventListener('change', rebuildItemSelect);
-bookFilter.addEventListener('input', rebuildItemSelect);
+let filterTimer;
+bookFilter.addEventListener('input', () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(rebuildItemSelect, 120);
+});
 
 $('#bookForm').addEventListener('submit', e => {
   e.preventDefault();
