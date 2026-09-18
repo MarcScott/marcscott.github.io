@@ -1449,7 +1449,11 @@ function applyRemote(val){
     format: FORMAT, version: VERSION,
     partyName: String(val.meta?.name || state.partyName || 'The Party'),
     holders,
-    homebrew: Object.entries(val.homebrew || {}).map(([k, d]) => cleanDef({...d, k})),
+    /* Firebase hands back a map, whose key order means nothing — sort it, or the
+       ★ Homebrew list reshuffles itself every time the board syncs. */
+    homebrew: Object.entries(val.homebrew || {})
+      .map(([k, d]) => cleanDef({...d, k}))
+      .sort((a, b) => a.n.localeCompare(b.n)),
   };
   save();
   rememberBoard(boardId, state.partyName);
